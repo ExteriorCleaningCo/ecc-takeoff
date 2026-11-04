@@ -138,12 +138,38 @@ details.items summary{cursor:pointer;font-size:13px;color:var(--soft)}
   .tool{flex:1 1 56px}
   .dlg .two{grid-template-columns:1fr}
 }
+[hidden]{display:none!important}
+body.at-home .app, body.at-home .top > :not(.brand){display:none!important}
+body:not(.at-home) #home{display:none}
+.home{max-width:1000px;margin:28px auto 0;display:flex;flex-direction:column;gap:16px}
+.home h1{margin:0;font:500 30px/1.1 var(--f-head);letter-spacing:.03em;text-transform:uppercase}
+.home .lead{margin:0;color:var(--soft);font-weight:300}
+.hgrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.5fr);gap:14px;align-items:start}
+.hcard{padding:20px;display:flex;flex-direction:column;gap:12px}
+.hcard h2{font-size:13px}
+.bigbtn{display:flex;align-items:center;justify-content:center;gap:8px;padding:16px 18px;font:500 18px var(--f-head);letter-spacing:.05em;text-transform:uppercase;border-radius:12px}
+.job{display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--bg)}
+.job .jinfo{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.job .jinfo b{font:500 16px var(--f-head);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.job .jinfo span{color:var(--soft);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.job .jinfo small{color:var(--soft);font:300 12px var(--f-mono)}
+#hSaved{display:flex;flex-direction:column;gap:8px}
+.emptyst{position:absolute;inset:0;z-index:4;display:flex;align-items:center;justify-content:center;padding:16px}
+.emptyst > div{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:22px;max-width:380px;display:flex;flex-direction:column;gap:12px;align-items:flex-start}
+.emptyst h3{margin:0;font:500 20px var(--f-head);letter-spacing:.03em}
+.emptyst p{margin:0;color:var(--soft);font-weight:300}
+.doc{display:flex;align-items:center;gap:8px;padding:6px 8px;border:1px solid var(--line);border-radius:8px;margin-bottom:6px;min-width:0}
+.doc.on{border-color:var(--accent);background:var(--accent-soft)}
+.doc .dn{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;font-size:14px}
+.doc .dm{color:var(--soft);font:300 12px var(--f-mono);white-space:nowrap}
+@media (max-width:700px){ .hgrid{grid-template-columns:minmax(0,1fr)} }
 @media (prefers-reduced-motion: reduce){*{transition:none!important}}
 </style>
 
 <header class="top">
   <div class="brand">ECC Takeoff<small>Measure from drawings</small></div>
-  <div class="file"><b id="fileName">Sample plan</b><button class="btn sm" id="scaleBadge" type="button">Scale</button></div>
+  <button class="btn sm" id="homeBtn" type="button">‹ Jobs</button>
+  <div class="file"><b id="fileName">No drawing yet</b><button class="btn sm" id="scaleBadge" type="button">Scale</button></div>
   <div class="seg" id="pageNav" hidden>
     <button class="btn sm" id="prevPage" type="button" aria-label="Previous page">‹</button>
     <span class="num" id="pageNum">1 / 1</span>
@@ -155,11 +181,29 @@ details.items summary{cursor:pointer;font-size:13px;color:var(--soft)}
     <button class="btn sm" id="zIn" type="button" aria-label="Zoom in">+</button>
     <button class="btn sm" id="zFit" type="button">Fit</button>
   </div>
-  <input type="file" id="fileIn" accept="application/pdf,.pdf,image/png,image/jpeg" hidden>
+  <input type="file" id="fileIn" accept="application/pdf,.pdf,image/png,image/jpeg" multiple hidden>
   <button class="btn" id="jobBtn" type="button">Job details</button>
-  <button class="btn" id="openBtn" type="button">Open PDF</button>
+  <button class="btn" id="openBtn" type="button">+ Add PDF</button>
   <button class="btn primary" id="exportBtn" type="button">Export to Excel</button>
 </header>
+
+<main id="home" class="home">
+  <h1>ECC Takeoff</h1>
+  <p class="lead">Measure new build houses from drawings. One job can hold as many PDFs as you need and nothing is lost when you add another.</p>
+  <div class="hgrid">
+    <section class="card hcard">
+      <h2>New</h2>
+      <p class="hint">Start a fresh job. You will enter the site, client and rates, then add your first PDF.</p>
+      <button class="btn primary bigbtn" id="hNew" type="button">+ New job</button>
+      <button class="btn sm" id="hSample" type="button" style="align-self:flex-start">Try the sample plan</button>
+    </section>
+    <section class="card hcard">
+      <h2>Saved</h2>
+      <div id="hSaved"></div>
+      <p class="hint" id="hMsg" role="status"></p>
+    </section>
+  </div>
+</main>
 
 <div class="app">
   <nav class="rail" aria-label="Tools" id="rail">
@@ -187,12 +231,18 @@ details.items summary{cursor:pointer;font-size:13px;color:var(--soft)}
     <div id="vp" class="pan">
       <div id="world"><canvas id="pageCanvas"></canvas><svg id="ov" xmlns="http://www.w3.org/2000/svg"></svg></div>
       <div class="drop" id="drop">Drop the PDF here</div>
+      <div class="emptyst" id="empty" hidden><div><h3>Add your first drawing</h3><p>Pick a PDF (or several at once). Everything you measure stays in this job, however many PDFs you add.</p><button class="btn primary" id="emptyAdd" type="button">+ Add PDF</button></div></div>
       <div class="hud" id="hud"></div>
       <div class="tip" id="tip" hidden></div>
     </div>
   </div>
 
   <aside class="side">
+    <section class="card">
+      <h2>Drawings in this job</h2>
+      <div id="docs"></div>
+      <div style="display:flex;gap:8px;margin-top:4px;flex-wrap:wrap"><button class="btn sm" id="addPdf" type="button">+ Add PDF</button></div>
+    </section>
     <section class="card">
       <h2>House types</h2>
       <div id="hts" style="display:flex;flex-direction:column;gap:10px"></div>
@@ -212,7 +262,7 @@ details.items summary{cursor:pointer;font-size:13px;color:var(--soft)}
     </section>
     <section class="card">
       <h2>How it works</h2>
-      <p class="hint">1. Click <b>Job details</b> and fill in the site, client and your rates. 2. Set the drawing scale. 3. Add a house type, give it its plot numbers, then pick what you are measuring (Brickwork, Render and so on) and click round it. Use <span class="kbd">Cut-out</span> for windows and doors. <span class="kbd">1</span>–<span class="kbd">5</span> switch the area, <span class="kbd">Enter</span> finishes a shape, <span class="kbd">Space</span> drags the drawing, <span class="kbd">⌘Z</span> undoes. 4. <b>Export to Excel</b> makes your tender summary.</p>
+      <p class="hint">1. Start a <b>New</b> job and fill in the site, client and your rates. 2. Add a PDF and set its scale. Use <b>+ Add PDF</b> for each further drawing: everything already measured stays. 3. Add a house type, give it its plot numbers, then pick what you are measuring (Brickwork, Render and so on) and click round it. Use <span class="kbd">Cut-out</span> for windows and doors. <span class="kbd">1</span>–<span class="kbd">5</span> switch the area, <span class="kbd">Enter</span> finishes a shape, <span class="kbd">Space</span> drags the drawing, <span class="kbd">⌘Z</span> undoes. 4. <b>Export to Excel</b> makes your tender summary.</p>
     </section>
   </aside>
 </div>
@@ -255,7 +305,7 @@ var money = function(n){ return '£'+nf(n); };
 var esc = function(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); };
 
 var S = {
-  name:'Sample plan', key:'sample', pages:[], pi:0, tool:'select', cut:false,
+  jobId:null, docs:[], pmap:{}, reattach:null, noStore:false, pages:[], pi:0, tool:'select', cut:false,
   job:{site:'',client:'',ref:''},
   settings:defaultSettings(),
   htypes:[], items:[], ht:null, el:0, sel:null, draft:null, hover:null, undo:[], open:{},
@@ -272,7 +322,7 @@ function polyArea(p){ var a=0; for(var i=0;i<p.length;i++){ var j=(i+1)%p.length
 function polyLen(p){ var l=0; for(var i=1;i<p.length;i++) l+=ptDist(p[i-1],p[i]); return l; }
 function mppOf(pageIdx){ var pg = S.pages[pageIdx]; return pg && pg.mpp ? pg.mpp : 0; }
 function itemQty(it){
-  var m = mppOf(it.page); if (!m) return 0;
+  var pgx = S.pmap[it.page], m = pgx && pgx.mpp; if (!m) return 0;
   return it.type==='area' ? polyArea(it.pts)*m*m : polyLen(it.pts)*m;
 }
 function htById(id){ return S.htypes.find(function(h){return h.id===id;}); }
@@ -303,18 +353,35 @@ function detectSheet(w,h){
 }
 
 /* ---------- state, undo, saving ---------- */
-function snap(){ return JSON.stringify({items:S.items,htypes:S.htypes,pages:S.pages.map(function(p){return {mpp:p.mpp,label:p.label};}),ht:S.ht,el:S.el,job:S.job}); }
+function snap(){ return JSON.stringify({items:S.items,htypes:S.htypes,pages:S.pages.map(function(p){return {id:p.id,mpp:p.mpp,label:p.label};}),ht:S.ht,el:S.el,job:S.job}); }
 function pushUndo(){ S.undo.push(snap()); if(S.undo.length>80) S.undo.shift(); }
 function restore(js){
   var o=JSON.parse(js); S.items=o.items||[]; S.htypes=o.htypes||[]; S.ht=o.ht||null; S.el=o.el||0; if(o.job) S.job=o.job;
-  (o.pages||[]).forEach(function(p,i){ if(S.pages[i]){ S.pages[i].mpp=p.mpp; S.pages[i].label=p.label; } });
+  (o.pages||[]).forEach(function(p){ var pg=S.pmap[p.id]; if(pg){ pg.mpp=p.mpp; pg.label=p.label; } });
   S.sel=null; S.draft=null;
 }
-var saveT=null;
-function save(){
-  clearTimeout(saveT);
-  saveT=setTimeout(function(){ if(S.key==='sample') return; try{ localStorage.setItem('eccTakeoff2:'+S.key, snap()); }catch(e){} }, 300);
+var saveT=null, IDX_KEY='eccTakeoffIndex';
+function readIndex(){ try{ return JSON.parse(localStorage.getItem(IDX_KEY)||'[]')||[]; }catch(e){ return []; } }
+function writeIndex(a){ try{ localStorage.setItem(IDX_KEY,JSON.stringify(a)); }catch(e){} }
+function jobRecord(){
+  return {id:S.jobId, job:S.job, settings:S.settings, htypes:S.htypes, items:S.items, ht:S.ht, el:S.el, updated:Date.now(),
+    docs:S.docs.map(function(d){ return {id:d.id,name:d.name,size:d.size,kind:d.kind,type:d.type,
+      pages:S.pages.filter(function(p){return p.docId===d.id;}).map(function(p){ return {w:p.w,h:p.h,mpp:p.mpp,label:p.label,sheet:p.sheet}; })}; })};
 }
+function saveNow(){
+  clearTimeout(saveT); if(!S.jobId) return;
+  var rec=jobRecord();
+  try{ localStorage.setItem('eccTakeoffJob:'+S.jobId, JSON.stringify(rec)); }catch(e){ return; }
+  var ix=readIndex().filter(function(x){return x.id!==S.jobId;});
+  ix.unshift({id:S.jobId, site:S.job.site, client:S.job.client, updated:rec.updated, docs:S.docs.length});
+  writeIndex(ix);
+}
+function save(){ clearTimeout(saveT); saveT=setTimeout(saveNow,300); }
+/* drawings are kept in the browser's own database so a saved job can reopen with its PDFs */
+function idbOpen(){ return new Promise(function(res){ try{ var r=indexedDB.open('eccTakeoff',1); r.onupgradeneeded=function(){ r.result.createObjectStore('f'); }; r.onsuccess=function(){ res(r.result); }; r.onerror=function(){ res(null); }; }catch(e){ res(null); } }); }
+async function idbPut(k,v){ var db=await idbOpen(); if(!db) return false; return new Promise(function(res){ try{ var tx=db.transaction('f','readwrite'); tx.objectStore('f').put(v,k); tx.oncomplete=function(){ res(true); }; tx.onerror=tx.onabort=function(){ res(false); }; }catch(e){ res(false); } }); }
+async function idbGet(k){ var db=await idbOpen(); if(!db) return null; return new Promise(function(res){ try{ var rq=db.transaction('f','readonly').objectStore('f').get(k); rq.onsuccess=function(){ res(rq.result||null); }; rq.onerror=function(){ res(null); }; }catch(e){ res(null); } }); }
+async function idbDel(k){ var db=await idbOpen(); if(!db) return; return new Promise(function(res){ try{ var tx=db.transaction('f','readwrite'); tx.objectStore('f').delete(k); tx.oncomplete=tx.onerror=tx.onabort=function(){ res(); }; }catch(e){ res(); } }); }
 function saveSettings(){ try{ localStorage.setItem('eccTakeoffSettings', JSON.stringify(S.settings)); }catch(e){} }
 function loadSettings(){
   var d=defaultSettings(), o=null;
@@ -362,6 +429,10 @@ async function renderBitmap(force){
       await S.renderTask.promise;
     } else if(pg.kind==='img'){
       ctx.fillStyle='#fff'; ctx.fillRect(0,0,tmp.width,tmp.height); ctx.drawImage(pg.img,0,0,tmp.width,tmp.height);
+    } else if(pg.kind==='missing'){
+      ctx.fillStyle='#eceff2'; ctx.fillRect(0,0,tmp.width,tmp.height); ctx.fillStyle='#64737f';
+      ctx.font=(Math.max(14,pg.w/40)*rs)+'px sans-serif'; ctx.textAlign='center';
+      ctx.fillText('This drawing is not loaded. Use Reattach beside it in the Drawings box.',tmp.width/2,tmp.height/2);
     } else { drawSample(ctx,rs); }
   }catch(err){ if(err && err.name==='RenderingCancelledException') return; console.error(err); return; }
   if(token!==S.token) return;
@@ -391,55 +462,162 @@ function drawSample(ctx,rs){
 
 /* ---------- loading files ---------- */
 function newHt(name,cat,plots){ return {id:uid(), name:name, cat:cat||'Detached', plots:plots||''}; }
-function resetForDoc(name,key,pages){
-  S.name=name; S.key=key; S.pages=pages; S.pi=0; S.items=[]; S.htypes=[]; S.ht=null; S.el=0; S.sel=null; S.draft=null; S.undo=[]; S.rs=0; S.open={};
-  S.job={site:'',client:'',ref:''};
-  S.settings=loadSettings();
-  var js=null; try{ js=localStorage.getItem('eccTakeoff2:'+key); }catch(e){}
-  var restored=false;
-  if(js && key!=='sample'){ try{ restore(js); restored=true; }catch(e){} }
-  if(!S.htypes.length){ var h=newHt('House type 1','Detached',''); S.htypes.push(h); S.ht=h.id; }
-  if(!S.ht || !htById(S.ht)) S.ht=S.htypes[0].id;
-  $('#fileName').textContent=name; setBanner(restored?'Your earlier measurements for this file are back.':'', 'info');
+function reindex(){ S.pmap={}; S.pages.forEach(function(p,i){ p.idx=i; S.pmap[p.id]=p; }); }
+function pageTag(p){
+  if(!p) return '';
+  var d=S.docs.find(function(x){return x.id===p.docId;}), nm=d?d.name.replace(/\.[a-z0-9]+$/i,''):'';
+  if(nm.length>14) nm=nm.slice(0,13)+'…';
+  return (S.docs.length>1?nm+' ':'')+'p'+p.n;
+}
+function normSettings(o){
+  var d=defaultSettings(); if(!o) return d;
+  if(Array.isArray(o.rates)) d.rates=o.rates.concat(['','','','','']).slice(0,5);
+  if(Array.isArray(o.labels)) d.labels=o.labels.concat(EL_DEFAULT).slice(0,5);
+  if(o.minCharge!=null) d.minCharge=o.minCharge; if(typeof o.foot==='string') d.foot=o.foot; return d;
+}
+function blankJob(){
+  S.jobId=uid(); S.docs=[]; S.pages=[]; S.pi=0; S.items=[]; S.htypes=[]; S.ht=null; S.el=0; S.sel=null; S.draft=null; S.undo=[]; S.rs=0; S.open={}; S.reattach=null; S.noStore=false;
+  S.job={site:'',client:'',ref:''}; S.settings=loadSettings();
+  var h=newHt('House type 1','Detached',''); S.htypes.push(h); S.ht=h.id; reindex();
+}
+function enterWork(){
+  document.body.classList.remove('at-home'); window.scrollTo(0,0);
   setTool('select'); fit(); renderBitmap(true); changed();
 }
+function goHome(msg){
+  if(S.jobId && (S.docs.length||S.job.site||S.items.length)) saveNow();
+  S.draft=null; S.calib=null; document.body.classList.add('at-home'); renderHome(msg); window.scrollTo(0,0);
+}
+function fmtDate(t){ try{ return new Date(t).toLocaleString('en-GB',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}); }catch(e){ return ''; } }
+function renderHome(msg){
+  var ix=readIndex(), el=$('#hSaved');
+  el.innerHTML = ix.length ? ix.map(function(j){
+    return '<div class="job"><div class="jinfo"><b>'+esc(j.site||'Untitled job')+'</b>'+(j.client?'<span>'+esc(j.client)+'</span>':'')+'<small>'+j.docs+' drawing'+(j.docs===1?'':'s')+' · '+esc(fmtDate(j.updated))+'</small></div>'+
+      '<button class="btn sm primary" data-openjob="'+j.id+'" type="button">Open</button><button class="x" data-deljob="'+j.id+'" type="button" aria-label="Delete job">×</button></div>';
+  }).join('') : '<p class="hint">Nothing saved yet. Your jobs appear here as soon as you start one.</p>';
+  $('#hMsg').textContent=msg||'';
+}
+async function deleteJob(id){
+  var rec=null; try{ rec=JSON.parse(localStorage.getItem('eccTakeoffJob:'+id)||'null'); }catch(e){}
+  if(rec&&rec.docs) for(var i=0;i<rec.docs.length;i++) await idbDel(id+'|'+rec.docs[i].id);
+  try{ localStorage.removeItem('eccTakeoffJob:'+id); }catch(e){}
+  writeIndex(readIndex().filter(function(x){return x.id!==id;}));
+  if(S.jobId===id) S.jobId=null;
+  renderHome();
+}
+/* open one file's bytes into page objects */
+async function readDocument(buf,kind,type){
+  if(kind==='pdf'){
+    if(!window.pdfjsLib) throw new Error('The PDF reader did not load. Check your internet connection and reload.');
+    var doc=await pdfjsLib.getDocument({data:new Uint8Array(buf.slice(0))}).promise, out=[];
+    for(var i=1;i<=doc.numPages;i++){ var p=await doc.getPage(i), v=p.getViewport({scale:1}); out.push({w:v.width,h:v.height,kind:'pdf',pdf:p,sheet:detectSheet(v.width,v.height)}); }
+    return out;
+  }
+  var url=URL.createObjectURL(new Blob([buf],{type:type||'image/png'})), img=new Image();
+  await new Promise(function(res,rej){ img.onload=res; img.onerror=rej; img.src=url; });
+  return [{w:img.naturalWidth,h:img.naturalHeight,kind:'img',img:img,sheet:null}];
+}
 function loadSample(){
-  var pg={w:1190.55,h:841.89,kind:'sample',mpp:100*MM_PER_PT/1000*(420/(1190.55*MM_PER_PT)),label:'1:100 on A3',sheet:'A3'};
-  resetForDoc('Sample plan','sample',[pg]);
+  blankJob(); S.jobId=null;
+  var pg={id:'sample#1',docId:'sample',n:1,w:1190.55,h:841.89,kind:'sample',mpp:100*MM_PER_PT/1000*(420/(1190.55*MM_PER_PT)),label:'1:100 on A3',sheet:'A3'};
+  S.docs=[{id:'sample',name:'Sample plan',kind:'sample',size:0}]; S.pages=[pg]; reindex();
   S.settings.rates=['2.50','2.00','3.00','2.50','2.50'];
   S.job={site:'Sample Gardens',client:'Sample Homes Ltd',ref:''};
   var h=S.htypes[0]; h.name='S351'; h.cat='Detached'; h.plots='21, 29, 31';
   S.items=[
-    {id:uid(),page:0,type:'area',ht:h.id,el:0,deduct:false,pts:[[100,300],[460,300],[460,500],[100,500]]},
-    {id:uid(),page:0,type:'area',ht:h.id,el:1,deduct:false,pts:[[280,300],[460,300],[460,390],[280,390]]},
-    {id:uid(),page:0,type:'area',ht:h.id,el:0,deduct:true,pts:[[130,330],[175,330],[175,385],[130,385]]},
-    {id:uid(),page:0,type:'area',ht:h.id,el:0,deduct:true,pts:[[230,420],[270,420],[270,500],[230,500]]}
+    {id:uid(),page:'sample#1',type:'area',ht:h.id,el:0,deduct:false,pts:[[100,300],[460,300],[460,500],[100,500]]},
+    {id:uid(),page:'sample#1',type:'area',ht:h.id,el:1,deduct:false,pts:[[280,300],[460,300],[460,390],[280,390]]},
+    {id:uid(),page:'sample#1',type:'area',ht:h.id,el:0,deduct:true,pts:[[130,330],[175,330],[175,385],[130,385]]},
+    {id:uid(),page:'sample#1',type:'area',ht:h.id,el:0,deduct:true,pts:[[230,420],[270,420],[270,500],[230,500]]}
   ];
-  S.undo=[]; changed();
-  setBanner('This is a sample so you can have a play. Drop your own PDF anywhere on the page to start.','info');
+  enterWork(); S.undo=[]; changed();
+  setBanner('This is a sample for a play. It is not saved. Press New on the Jobs page to start a real job.','info');
 }
-async function loadFile(file){
-  if(!file) return;
-  var key=file.name+'|'+file.size;
-  try{
-    if(/pdf$/i.test(file.type)||/\.pdf$/i.test(file.name)){
-      if(!window.pdfjsLib) throw new Error('The PDF reader did not load. Check your internet connection and reload.');
-      var buf=new Uint8Array(await file.arrayBuffer());
-      var doc=await pdfjsLib.getDocument({data:buf}).promise;
-      var pages=[];
-      for(var i=1;i<=doc.numPages;i++){
-        var p=await doc.getPage(i), v=p.getViewport({scale:1});
-        pages.push({w:v.width,h:v.height,kind:'pdf',pdf:p,mpp:null,label:'',sheet:detectSheet(v.width,v.height)});
-      }
-      resetForDoc(file.name,key,pages);
-    } else if(/^image\//.test(file.type)){
-      var url=URL.createObjectURL(file), img=new Image();
-      await new Promise(function(res,rej){ img.onload=res; img.onerror=rej; img.src=url; });
-      resetForDoc(file.name,key,[{w:img.naturalWidth,h:img.naturalHeight,kind:'img',img:img,mpp:null,label:'',sheet:null}]);
-    } else { setBanner('That file type is not supported. Use a PDF, PNG or JPG.','warn'); return; }
-    if(!S.job.site) setTimeout(function(){ if(!document.getElementById('dlgbg')) openJobDialog(true); },250);
-    else if(!mppOf(0)) setTimeout(function(){ if(!mppOf(S.pi) && !document.getElementById('dlgbg')) openScaleDialog(); },250);
-  }catch(err){ console.error(err); setBanner('Could not open that file. '+(err&&err.message?err.message:''),'warn'); }
+async function openJob(id){
+  var rec=null; try{ rec=JSON.parse(localStorage.getItem('eccTakeoffJob:'+id)||'null'); }catch(e){}
+  if(!rec){ renderHome('That job could not be found.'); return; }
+  $('#hMsg').textContent='Opening '+(rec.job&&rec.job.site||'job')+'…';
+  blankJob(); S.jobId=rec.id; S.job=rec.job||S.job; S.settings=normSettings(rec.settings);
+  if(rec.htypes&&rec.htypes.length) S.htypes=rec.htypes; S.items=rec.items||[]; S.el=rec.el||0; S.ht=rec.ht;
+  if(!S.ht||!htById(S.ht)) S.ht=S.htypes[0].id;
+  var missing=0;
+  for(var k=0;k<(rec.docs||[]).length;k++){
+    var d=rec.docs[k], meta=d.pages||[], row={id:d.id,name:d.name,size:d.size,kind:d.kind,type:d.type,missing:false}, parts=null;
+    var stored=await idbGet(S.jobId+'|'+d.id);
+    if(stored&&stored.buf){ try{ parts=await readDocument(stored.buf,d.kind,stored.type||d.type); }catch(e){ parts=null; } }
+    if(!parts||parts.length!==meta.length){ parts=null; row.missing=true; missing++; }
+    S.docs.push(row);
+    meta.forEach(function(m,i){
+      var pt = parts ? parts[i] : {w:m.w,h:m.h,kind:'missing',sheet:m.sheet};
+      pt.id=d.id+'#'+(i+1); pt.docId=d.id; pt.n=i+1; pt.mpp=m.mpp||null; pt.label=m.label||''; S.pages.push(pt);
+    });
+  }
+  reindex(); enterWork();
+  if(missing) setBanner(missing+' drawing'+(missing>1?'s':'')+' could not be found in this browser. Your measurements are safe: press Reattach beside the drawing and pick the same PDF again.','warn');
+  else setBanner('Job opened. Everything you measured is here.','info');
+}
+async function reattachDoc(d,f){
+  var buf=await f.arrayBuffer(), parts=await readDocument(buf,d.kind,f.type);
+  var pgs=S.pages.filter(function(p){return p.docId===d.id;});
+  if(parts.length!==pgs.length){ setBanner('That file has '+parts.length+' page'+(parts.length===1?'':'s')+' but the saved drawing has '+pgs.length+'. Pick the same PDF.','warn'); return false; }
+  pgs.forEach(function(p,i){ var pt=parts[i]; p.kind=pt.kind; p.pdf=pt.pdf; p.img=pt.img; p.w=pt.w; p.h=pt.h; p.sheet=pt.sheet; });
+  d.missing=false;
+  if(S.jobId) await idbPut(S.jobId+'|'+d.id,{buf:buf,type:f.type});
+  S.rs=0; renderBitmap(true); changed(); saveNow(); setBanner('Drawing added back.','info'); return true;
+}
+async function addFiles(files){
+  if(!files||!files.length) return;
+  if(!S.jobId){ blankJob(); }          /* adding to the sample starts a real job */
+  var firstNew=-1, msgs=[], added=0;
+  setBanner('Reading '+files.length+' file'+(files.length>1?'s':'')+'…','info');
+  for(var n=0;n<files.length;n++){
+    var f=files[n];
+    try{
+      var isPdf=/pdf$/i.test(f.type)||/\.pdf$/i.test(f.name), isImg=/^image\/(png|jpeg)/.test(f.type);
+      if(!isPdf&&!isImg){ msgs.push(f.name+' is not a PDF, PNG or JPG'); continue; }
+      var dup=S.docs.find(function(d){return d.name===f.name&&d.size===f.size;});
+      if(dup){ if(dup.missing){ await reattachDoc(dup,f); } else msgs.push(f.name+' is already in this job'); continue; }
+      var buf=await f.arrayBuffer(), parts=await readDocument(buf,isPdf?'pdf':'img',f.type), id=uid();
+      var start=S.pages.length;
+      parts.forEach(function(pt,i){ pt.id=id+'#'+(i+1); pt.docId=id; pt.n=i+1; pt.mpp=null; pt.label=''; S.pages.push(pt); });
+      S.docs.push({id:id,name:f.name,size:f.size,kind:isPdf?'pdf':'img',type:f.type,missing:false});
+      if(firstNew<0) firstNew=start; added++;
+      var ok=await idbPut(S.jobId+'|'+id,{buf:buf,type:f.type}); if(!ok) S.noStore=true;
+    }catch(err){ console.error(err); msgs.push(f.name+' could not be opened'+(err&&err.message?' ('+err.message+')':'')); }
+  }
+  reindex();
+  if(firstNew>=0){
+    document.body.classList.remove('at-home');
+    S.pi=firstNew; S.draft=null; S.sel=null; S.rs=0; fit(); renderBitmap(true); changed(); saveNow();
+    var note='Added '+added+' drawing'+(added>1?'s':'')+(S.items.length?'. Everything already measured is still here.':'.');
+    if(S.noStore) note+=' This browser could not keep the PDFs, so you will be asked for them again when you reopen the job.';
+    setBanner(msgs.length?msgs.join('. ')+'. '+note:note, msgs.length?'warn':'info');
+    if(!S.job.site) setTimeout(function(){ if(!document.getElementById('dlgbg')) openJobDialog('edit'); },250);
+    else if(!mppOf(S.pi)) setTimeout(function(){ if(!mppOf(S.pi) && !document.getElementById('dlgbg')) openScaleDialog(); },250);
+  } else setBanner(msgs.join('. ')||'Nothing was added.','warn');
+}
+function renderDocs(){
+  var root=$('#docs'); if(!root) return;
+  var cp=cur();
+  root.innerHTML = S.docs.length ? S.docs.map(function(d){
+    var pgs=S.pages.filter(function(p){return p.docId===d.id;}), ids={}; pgs.forEach(function(p){ids[p.id]=1;});
+    var n=S.items.filter(function(i){return ids[i.page];}).length;
+    return '<div class="doc'+(cp&&cp.docId===d.id?' on':'')+'"><span class="dn" data-godoc="'+d.id+'" title="'+esc(d.name)+'">'+esc(d.name)+'</span><span class="dm">'+pgs.length+' pg · '+n+' meas</span>'+
+      (d.missing?'<button class="btn sm warn" data-redoc="'+d.id+'" type="button">Reattach</button>':'')+
+      (d.id==='sample'?'':'<button class="x" data-rmdoc="'+d.id+'" type="button" aria-label="Remove drawing">×</button>')+'</div>';
+  }).join('') : '<p class="hint" style="margin-bottom:8px">No drawings yet.</p>';
+}
+function removeDoc(id,btn){
+  var pgs=S.pages.filter(function(p){return p.docId===id;}), ids={}; pgs.forEach(function(p){ids[p.id]=1;});
+  var n=S.items.filter(function(i){return ids[i.page];}).length;
+  if(n && !btn.dataset.sure){ btn.dataset.sure='1'; btn.textContent='Remove + '+n+'?'; btn.style.color='var(--bad)'; btn.style.fontSize='12px'; setTimeout(function(){ if(btn.isConnected){ btn.textContent='×'; btn.style.color=''; btn.style.fontSize=''; delete btn.dataset.sure; } },3000); return; }
+  var curId=cur()&&cur().id;
+  S.items=S.items.filter(function(i){return !ids[i.page];});
+  S.pages=S.pages.filter(function(p){return p.docId!==id;}); S.docs=S.docs.filter(function(d){return d.id!==id;});
+  if(S.jobId) idbDel(S.jobId+'|'+id);
+  reindex(); S.sel=null; S.draft=null; S.undo=[];
+  S.pi = (curId&&S.pmap[curId]) ? S.pmap[curId].idx : Math.max(0,Math.min(S.pi,S.pages.length-1));
+  S.rs=0; fit(); renderBitmap(true); changed(); saveNow();
 }
 
 /* ---------- tools ---------- */
@@ -461,16 +639,21 @@ function toolHelp(){
 }
 function updateChrome(){
   var pg=cur();
-  hud.innerHTML = toolHelp() || '';
+  hud.innerHTML = pg ? (toolHelp() || '') : '';
   hud.hidden = !hud.innerHTML;
   var b=$('#scaleBadge');
-  if(pg && pg.mpp){ b.textContent = pg.label||'Scale set'; b.className='btn sm'; }
-  else { b.textContent='Set the scale'; b.className='btn sm warn'; }
+  if(!pg){ b.hidden=true; }
+  else { b.hidden=false; if(pg.mpp){ b.textContent = pg.label||'Scale set'; b.className='btn sm'; } else { b.textContent='Set the scale'; b.className='btn sm warn'; } }
+  var d=pg && S.docs.find(function(x){return x.id===pg.docId;});
+  var inDoc=pg ? S.pages.filter(function(p){return p.docId===pg.docId;}).length : 0;
+  $('#fileName').textContent = d ? d.name+(inDoc>1?' · page '+pg.n+' of '+inDoc:'') : (S.job.site||'No drawing yet');
   $('#pageNav').hidden = !(S.pages.length>1);
   $('#pageNum').textContent = (S.pi+1)+' / '+S.pages.length;
   $('#prevPage').disabled = S.pi===0; $('#nextPage').disabled = S.pi>=S.pages.length-1;
   $('#undoBtn').disabled = !S.undo.length;
+  $('#empty').hidden = !!pg; world.style.display = pg ? '' : 'none';
   var jb=$('#jobBtn'); jb.textContent = S.job.site ? S.job.site : 'Job details'; jb.style.maxWidth='180px'; jb.style.overflow='hidden'; jb.style.textOverflow='ellipsis';
+  renderDocs();
 }
 function setBanner(msg,kind){
   var old=vp.querySelector('.banner'); if(old) old.remove();
@@ -495,14 +678,15 @@ $('#selEl').onchange=function(){ S.el=parseInt(this.value,10)||0; $('#elDot').st
 
 /* ---------- dialogs ---------- */
 function closeDlg(){ $('#dlgRoot').innerHTML=''; }
-function openJobDialog(firstTime){
+function openJobDialog(mode){
+  var isNew = mode==='new';
   var st=S.settings;
   var rateRows=[0,1,2,3,4].map(function(i){
     return '<input type="text" id="jl'+i+'" value="'+esc(elLabel(i))+'" aria-label="Area name '+(i+1)+'"><input type="number" step="0.01" min="0" inputmode="decimal" id="jr'+i+'" value="'+esc(st.rates[i])+'" placeholder="£ per m²" aria-label="Rate per m²">';
   }).join('');
   $('#dlgRoot').innerHTML=
    '<div class="dlgbg" id="dlgbg"><div class="dlg" role="dialog" aria-modal="true" aria-label="Job details">'+
-   '<h3>Job details</h3>'+
+   '<h3>'+(isNew?'New job':'Job details')+'</h3>'+
    '<div class="two"><label>Site name<input type="text" id="jSite" value="'+esc(S.job.site)+'" placeholder="e.g. Anderton Green"></label>'+
    '<label>Client<input type="text" id="jClient" value="'+esc(S.job.client)+'" placeholder="e.g. Miller Homes"></label></div>'+
    '<label>Details / reference<input type="text" id="jRef" value="'+esc(S.job.ref)+'" placeholder="Tender reference, phase, notes"></label>'+
@@ -510,19 +694,21 @@ function openJobDialog(firstTime){
    '<div class="rates">'+rateRows+'</div>'+
    '<div class="two"><label>Minimum charge per plot (£)<input type="number" step="0.01" min="0" id="jMin" value="'+esc(st.minCharge)+'"></label><span></span></div>'+
    '<hr><label>Footnotes on the tender (one per line)<textarea id="jFoot" rows="6">'+esc(st.foot)+'</textarea></label>'+
-   '<div class="acts"><button class="btn" id="jX" type="button">Cancel</button><button class="btn primary" id="jGo" type="button">Save</button></div>'+
+   '<div class="acts"><button class="btn" id="jX" type="button">Cancel</button><button class="btn primary" id="jGo" type="button">'+(isNew?'Create job and add PDF':'Save')+'</button></div>'+
    '</div></div>';
   setTimeout(function(){ var f=$('#jSite'); if(f) f.focus(); },30);
-  $('#dlgbg').onclick=function(e){ if(e.target.id==='dlgbg') closeDlg(); };
-  $('#jX').onclick=function(){ closeDlg(); if(firstTime && !mppOf(S.pi)) openScaleDialog(); };
+  var cancelJob=function(){ closeDlg(); if(isNew){ S.jobId=null; goHome(); } };
+  $('#dlgbg').onclick=function(e){ if(e.target.id==='dlgbg') cancelJob(); };
+  $('#jX').onclick=cancelJob;
   $('#jGo').onclick=function(){
-    pushUndo();
+    if(!isNew) pushUndo();
     S.job={site:$('#jSite').value.trim(), client:$('#jClient').value.trim(), ref:$('#jRef').value.trim()};
     for(var i=0;i<5;i++){ S.settings.labels[i]=$('#jl'+i).value.trim()||EL_DEFAULT[i]; S.settings.rates[i]=$('#jr'+i).value; }
     S.settings.minCharge=$('#jMin').value===''?0:$('#jMin').value;
     S.settings.foot=$('#jFoot').value;
-    saveSettings(); closeDlg(); changed();
-    if(firstTime && !mppOf(S.pi)) openScaleDialog();
+    saveSettings(); closeDlg();
+    if(isNew){ enterWork(); saveNow(); S.reattach=null; $('#fileIn').click(); }
+    else { changed(); saveNow(); if(S.pages.length && !mppOf(S.pi)) openScaleDialog(); }
   };
 }
 function openScaleDialog(){
@@ -530,7 +716,7 @@ function openScaleDialog(){
   var det = pg.sheet ? pg.sheet+(pg.w>=pg.h?' landscape':' portrait') : 'an unknown sheet size';
   var sheetOpts='<option value="pdf">Same as the PDF ('+esc(det)+')</option>'+Object.keys(SHEETS).map(function(k){ return '<option value="'+k+'">'+k+'</option>'; }).join('');
   var ratioOpts=RATIOS.map(function(r){ return '<option value="'+r+'"'+(r===100?' selected':'')+'>1:'+r+'</option>'; }).join('');
-  var multi = S.pages.length>1;
+  var sib=S.pages.filter(function(p){return p.docId===pg.docId;}), multi = sib.length>1;
   $('#dlgRoot').innerHTML =
    '<div class="dlgbg" id="dlgbg"><div class="dlg" role="dialog" aria-modal="true" aria-label="Set the scale">'+
    '<h3>Set the scale</h3>'+
@@ -538,7 +724,7 @@ function openScaleDialog(){
    '<div class="two"><label>Drawing scale<select id="scR">'+ratioOpts+'</select></label>'+
    '<label>Sheet size it was printed on<select id="scS">'+sheetOpts+'</select></label></div>'+
    '<p class="note">If the PDF was shrunk to fit a smaller sheet, choose the original sheet size here, or measure a known length instead.</p>'+
-   (multi?'<label style="flex-direction:row;align-items:center;gap:8px"><input type="checkbox" id="scAll" checked style="width:auto"> Use the same scale on every page</label>':'')+
+   (multi?'<label style="flex-direction:row;align-items:center;gap:8px"><input type="checkbox" id="scAll" checked style="width:auto"> Use the same scale on every page of this PDF</label>':'')+
    '<div class="acts"><button class="btn primary" id="scGo" type="button">Use this scale</button></div>'+
    '<hr><p class="note"><b>Or measure a known length.</b> Click both ends of a dimension you know, such as a wall or a printed scale bar, then type how long it is.</p>'+
    '<div class="acts"><button class="btn" id="scCal" type="button">Measure a known length</button><button class="btn" id="scX" type="button">Cancel</button></div>'+
@@ -556,18 +742,18 @@ function openScaleDialog(){
     };
     pushUndo();
     var all=$('#scAll')&&$('#scAll').checked;
-    if(all) S.pages.forEach(apply); else apply(cur());
+    if(all) sib.forEach(apply); else apply(cur());
     closeDlg(); setTool('select'); changed();
   };
   $('#scCal').onclick=function(){ closeDlg(); S.tool='scale'; S.calib={pts:[]}; document.querySelectorAll('.tool[data-tool]').forEach(function(b){ b.setAttribute('aria-pressed', b.dataset.tool==='scale'?'true':'false'); }); vp.classList.add('cross'); vp.classList.remove('pan'); updateChrome(); drawOverlay(); };
 }
 function openCalibDialog(dPt){
-  var multi=S.pages.length>1;
+  var sib2=S.pages.filter(function(p){return p.docId===cur().docId;}), multi=sib2.length>1;
   $('#dlgRoot').innerHTML=
    '<div class="dlgbg" id="dlgbg"><div class="dlg" role="dialog" aria-modal="true" aria-label="Known length">'+
    '<h3>How long is that line?</h3>'+
    '<label>Real length in metres<input type="number" id="clM" min="0" step="any" inputmode="decimal" placeholder="e.g. 12.5"></label>'+
-   (multi?'<label style="flex-direction:row;align-items:center;gap:8px"><input type="checkbox" id="clAll" style="width:auto"> Use the same scale on every page</label>':'')+
+   (multi?'<label style="flex-direction:row;align-items:center;gap:8px"><input type="checkbox" id="clAll" style="width:auto"> Use the same scale on every page of this PDF</label>':'')+
    '<div class="acts"><button class="btn" id="clX" type="button">Cancel</button><button class="btn primary" id="clGo" type="button">Set scale</button></div>'+
    '</div></div>';
   var inp=$('#clM'); setTimeout(function(){ inp.focus(); },30);
@@ -576,7 +762,7 @@ function openCalibDialog(dPt){
     if(!(m>0)){ inp.style.borderColor='var(--bad)'; return; }
     var mpp=m/dPt; pushUndo();
     var set=function(p){ p.mpp=mpp; p.label='Measured on the drawing'; };
-    if($('#clAll')&&$('#clAll').checked) S.pages.forEach(set); else set(cur());
+    if($('#clAll')&&$('#clAll').checked) sib2.forEach(set); else set(cur());
     closeDlg(); setTool('select'); changed();
   };
   $('#clGo').onclick=go; $('#clX').onclick=function(){ closeDlg(); setTool('select'); };
@@ -586,7 +772,7 @@ function openCalibDialog(dPt){
 
 /* ---------- geometry for pointer ---------- */
 function snapPt(p, from, shift){
-  var z=view.z, best=null, bd=9/z, pg=S.pi;
+  var z=view.z, best=null, bd=9/z, pg=cur()&&cur().id;
   S.items.forEach(function(it){ if(it.page!==pg) return; it.pts.forEach(function(q){ var d=ptDist(p,q); if(d<bd){ bd=d; best=q; } }); });
   if(S.draft && S.draft.pts && S.draft.pts.length){ var f=S.draft.pts[0]; var d0=ptDist(p,f); if(d0<bd){ bd=d0; best=f; } }
   if(best) return best.slice();
@@ -601,14 +787,14 @@ function segDist(p,a,b){ var dx=b[0]-a[0],dy=b[1]-a[1],l=dx*dx+dy*dy; var t=l?Ma
 function hitItem(p){
   var tol=8/view.z;
   for(var i=S.items.length-1;i>=0;i--){
-    var it=S.items[i]; if(it.page!==S.pi) continue;
+    var it=S.items[i]; if(it.page!==(cur()&&cur().id)) continue;
     if(it.type==='length'){ for(var k=1;k<it.pts.length;k++) if(segDist(p,it.pts[k-1],it.pts[k])<tol) return it; }
     else { if(inPoly(p,it.pts)) return it; for(var k2=0;k2<it.pts.length;k2++){ if(segDist(p,it.pts[k2],it.pts[(k2+1)%it.pts.length])<tol) return it; } }
   }
   return null;
 }
 function hitHandle(p){
-  var it=S.items.find(function(x){return x.id===S.sel;}); if(!it||it.page!==S.pi) return null;
+  var it=S.items.find(function(x){return x.id===S.sel;}); if(!it||it.page!==(cur()&&cur().id)) return null;
   for(var i=0;i<it.pts.length;i++) if(ptDist(p,it.pts[i])<10/view.z) return {item:it,idx:i};
   return null;
 }
@@ -628,7 +814,7 @@ function drawOverlayNow(){
   ov.setAttribute('width',pg.w); ov.setAttribute('height',pg.h); ov.setAttribute('viewBox','0 0 '+pg.w+' '+pg.h);
   var sw=2/z, fs=13/z, r=5/z;
   S.items.forEach(function(it){
-    if(it.page!==S.pi) return;
+    if(it.page!==pg.id) return;
     var col=EL_COLORS[it.el]||'#888', sel=it.id===S.sel, q=itemQty(it), mine=it.ht===S.ht, op=mine?1:0.4;
     if(it.type==='area'){
       var c0=it.deduct?'#d33':col;
@@ -663,7 +849,7 @@ function drawOverlayNow(){
 function rectPts(a,b){ return [[a[0],a[1]],[b[0],a[1]],[b[0],b[1]],[a[0],b[1]]]; }
 
 /* ---------- creating shapes ---------- */
-function needScale(){ if(mppOf(S.pi)) return false; setBanner('Set the scale first so the sizes come out right.','warn'); openScaleDialog(); return true; }
+function needScale(){ if(!cur()) return true; if(mppOf(S.pi)) return false; setBanner('Set the scale first so the sizes come out right.','warn'); openScaleDialog(); return true; }
 function ensureHt(){
   if(S.ht && htById(S.ht)) return true;
   if(!S.htypes.length){ var h=newHt('House type 1','Detached',''); S.htypes.push(h); S.ht=h.id; refreshBar(); return true; }
@@ -671,7 +857,7 @@ function ensureHt(){
 }
 function addItem(type,pts,deduct){
   ensureHt(); pushUndo();
-  var it={id:uid(),page:S.pi,type:type,ht:S.ht,el:S.el,deduct:!!deduct,pts:pts};
+  var it={id:uid(),page:cur().id,type:type,ht:S.ht,el:S.el,deduct:!!deduct,pts:pts};
   S.items.push(it); S.sel=it.id; S.open[S.ht]=true; changed();
 }
 function finishDraft(){
@@ -682,6 +868,7 @@ function finishDraft(){
 }
 var lastClick={t:0,p:null};
 function handleClick(p,e){
+  if(!cur()) return;
   if(S.calib){
     S.calib.pts.push(p);
     if(S.calib.pts.length===2){ var dd=ptDist(S.calib.pts[0],S.calib.pts[1]); if(dd<1){ S.calib.pts=[]; drawOverlay(); return; } openCalibDialog(dd); }
@@ -713,7 +900,7 @@ function handleClick(p,e){
 
 /* ---------- pointer events ---------- */
 vp.addEventListener('pointerdown',function(e){
-  if(e.target.closest('.hud,.banner,.x')) return;
+  if(e.target.closest('.hud,.banner,.x,.emptyst')) return;
   vp.setPointerCapture(e.pointerId);
   var p=toWorld(e);
   var dn={x:e.clientX,y:e.clientY,btn:e.button,moved:false,pan:false,vx:view.x,vy:view.y,p:p,handle:null};
@@ -840,7 +1027,7 @@ function renderSide(){
     var its=S.items.filter(function(i){return i.ht===h.id;}), counters={area:0,length:0};
     var list=its.map(function(it){
       var n=++counters[it.type];
-      return '<div class="it"><span class="nm2'+(it.id===S.sel?' sel':'')+'" data-sel="'+it.id+'">'+esc(itemLabel(it,n))+(S.pages.length>1?' <span style="color:var(--soft)">p'+(it.page+1)+'</span>':'')+'</span>'+
+      return '<div class="it"><span class="nm2'+(it.id===S.sel?' sel':'')+'" data-sel="'+it.id+'">'+esc(itemLabel(it,n))+(S.pages.length>1?' <span style="color:var(--soft)">'+esc(pageTag(S.pmap[it.page]))+'</span>':'')+'</span>'+
         (it.type==='area' ? '<select data-mvel="'+it.id+'" aria-label="Change area">'+[0,1,2,3,4].map(function(i){ return '<option value="'+i+'"'+(i===it.el?' selected':'')+'>'+esc(elLabel(i))+'</option>'; }).join('')+'</select>' : '')+
         '<select data-mv="'+it.id+'" aria-label="Move to house type">'+S.htypes.map(function(o){ return '<option value="'+o.id+'"'+(o.id===h.id?' selected':'')+'>'+esc(o.name||'(no name)')+'</option>'; }).join('')+'</select>'+
         '<button class="x" data-del="'+it.id+'" type="button" aria-label="Delete">×</button></div>';
@@ -869,7 +1056,7 @@ function renderSide(){
   });
   root.querySelectorAll('select[data-cat]').forEach(function(i){ i.addEventListener('change',function(){ htById(i.dataset.cat).cat=i.value; save(); refreshBar(); }); });
   root.querySelectorAll('[data-rm]').forEach(function(b){ b.addEventListener('click',function(){ removeHt(b.dataset.rm); }); });
-  root.querySelectorAll('[data-sel]').forEach(function(b){ b.addEventListener('click',function(){ var it=S.items.find(function(x){return x.id===b.dataset.sel;}); if(!it) return; if(it.page!==S.pi){ goPage(it.page); } setTool('select'); S.sel=it.id; renderSide(); drawOverlay(); }); });
+  root.querySelectorAll('[data-sel]').forEach(function(b){ b.addEventListener('click',function(){ var it=S.items.find(function(x){return x.id===b.dataset.sel;}); if(!it) return; var tp=S.pmap[it.page]; if(tp&&tp.idx!==S.pi){ goPage(tp.idx); } setTool('select'); S.sel=it.id; renderSide(); drawOverlay(); }); });
   root.querySelectorAll('[data-del]').forEach(function(b){ b.addEventListener('click',function(){ delItem(b.dataset.del); }); });
   root.querySelectorAll('select[data-mv]').forEach(function(s){ s.addEventListener('change',function(){ var it=S.items.find(function(x){return x.id===s.dataset.mv;}); pushUndo(); it.ht=s.value; changed(); }); });
   root.querySelectorAll('select[data-mvel]').forEach(function(s){ s.addEventListener('change',function(){ var it=S.items.find(function(x){return x.id===s.dataset.mvel;}); pushUndo(); it.el=parseInt(s.value,10)||0; changed(); }); });
@@ -916,7 +1103,7 @@ $('#jobBtn').onclick=function(){ openJobDialog(false); };
 
 /* ---------- copy summary ---------- */
 function summaryText(){
-  var L=[]; L.push('TAKEOFF — '+(S.job.site||S.name)+(S.job.client?' ('+S.job.client+')':''));
+  var L=[]; L.push('TAKEOFF — '+(S.job.site||'Takeoff')+(S.job.client?' ('+S.job.client+')':''));
   var labels={}; S.pages.forEach(function(p){ if(p.label) labels[p.label]=1; });
   if(Object.keys(labels).length) L.push('Scale: '+Object.keys(labels).join(', '));
   L.push('');
@@ -1084,18 +1271,42 @@ function goPage(i){ if(i<0||i>=S.pages.length) return; S.pi=i; S.draft=null; S.s
 $('#prevPage').onclick=function(){ goPage(S.pi-1); }; $('#nextPage').onclick=function(){ goPage(S.pi+1); };
 $('#zIn').onclick=function(){ var s=vpSize(); zoomAt(1.25,s.w/2,s.h/2); }; $('#zOut').onclick=function(){ var s=vpSize(); zoomAt(0.8,s.w/2,s.h/2); }; $('#zFit').onclick=fit;
 $('#scaleBadge').onclick=openScaleDialog;
-$('#openBtn').onclick=function(){ $('#fileIn').click(); };
-$('#fileIn').onchange=function(e){ loadFile(e.target.files[0]); e.target.value=''; };
+var pickPdf=function(){ S.reattach=null; $('#fileIn').click(); };
+$('#openBtn').onclick=pickPdf; $('#addPdf').onclick=pickPdf; $('#emptyAdd').onclick=pickPdf;
+$('#fileIn').onchange=function(e){
+  var files=Array.prototype.slice.call(e.target.files||[]); e.target.value='';
+  if(S.reattach){ var d=S.docs.find(function(x){return x.id===S.reattach;}); S.reattach=null; if(d&&files[0]) reattachDoc(d,files[0]).catch(function(err){ console.error(err); setBanner('Could not read that file.','warn'); }); return; }
+  addFiles(files);
+};
+$('#docs').addEventListener('click',function(e){
+  var g=e.target.closest('[data-godoc]'), r=e.target.closest('[data-redoc]'), x=e.target.closest('[data-rmdoc]');
+  if(g){ var p=S.pages.find(function(q){return q.docId===g.dataset.godoc;}); if(p) goPage(p.idx); }
+  else if(r){ S.reattach=r.dataset.redoc; $('#fileIn').click(); }
+  else if(x){ removeDoc(x.dataset.rmdoc,x); }
+});
+$('#homeBtn').onclick=function(){ goHome(); };
+$('#hNew').onclick=function(){ blankJob(); openJobDialog('new'); };
+$('#hSample').onclick=loadSample;
+$('#hSaved').addEventListener('click',function(e){
+  var o=e.target.closest('[data-openjob]'), d=e.target.closest('[data-deljob]');
+  if(o) openJob(o.dataset.openjob).catch(function(err){ console.error(err); renderHome('Could not open that job.'); });
+  else if(d){
+    if(!d.dataset.sure){ d.dataset.sure='1'; d.textContent='Delete?'; d.style.color='var(--bad)'; d.style.fontSize='12px'; setTimeout(function(){ if(d.isConnected){ d.textContent='×'; d.style.color=''; d.style.fontSize=''; delete d.dataset.sure; } },3000); }
+    else deleteJob(d.dataset.deljob);
+  }
+});
+window.addEventListener('pagehide',saveNow);
+document.addEventListener('visibilitychange',function(){ if(document.hidden) saveNow(); });
 document.querySelectorAll('.tool[data-tool]').forEach(function(b){ b.onclick=function(){ setTool(b.dataset.tool); if(b.dataset.tool==='scale') openScaleDialog(); }; });
 $('#cutBtn').onclick=toggleCut;
 var dragDepth=0, dropEl=$('#drop');
 window.addEventListener('dragenter',function(e){ if(e.dataTransfer&&Array.prototype.indexOf.call(e.dataTransfer.types,'Files')>=0){ dragDepth++; dropEl.classList.add('on'); e.preventDefault(); } });
 window.addEventListener('dragover',function(e){ e.preventDefault(); });
 window.addEventListener('dragleave',function(){ dragDepth=Math.max(0,dragDepth-1); if(!dragDepth) dropEl.classList.remove('on'); });
-window.addEventListener('drop',function(e){ e.preventDefault(); dragDepth=0; dropEl.classList.remove('on'); var f=e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files[0]; if(f) loadFile(f); });
-var rzT=null; window.addEventListener('resize',function(){ clearTimeout(rzT); rzT=setTimeout(function(){ if(cur()) { applyView(); } },150); });
+window.addEventListener('drop',function(e){ e.preventDefault(); dragDepth=0; dropEl.classList.remove('on'); if(document.body.classList.contains('at-home')) return; var fl=e.dataTransfer&&e.dataTransfer.files; if(fl&&fl.length) addFiles(Array.prototype.slice.call(fl)); });
+var rzT=null; window.addEventListener('resize',function(){ clearTimeout(rzT); rzT=setTimeout(function(){ if(cur() && !document.body.classList.contains('at-home')) { applyView(); } },150); });
 
-window.__takeoff={S:S,view:view,toScreen:toScreen,fit:fit,loadFile:loadFile,summaryText:summaryText,htStats:htStats,buildWorkbook:buildWorkbook,exportExcel:exportExcel};
-loadSample();
+window.__takeoff={addFiles:addFiles,openJob:openJob,goHome:goHome,readIndex:readIndex,S:S,view:view,toScreen:toScreen,fit:fit,loadSample:loadSample,summaryText:summaryText,htStats:htStats,buildWorkbook:buildWorkbook,exportExcel:exportExcel};
+document.body.classList.add('at-home'); renderHome();
 })();
 </script>
