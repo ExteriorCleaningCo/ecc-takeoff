@@ -345,11 +345,16 @@ var S = {
   htypes:[], items:[], ht:null, el:0, sel:null, draft:null, hover:null, undo:[], open:{},
   areaName:'', space:false, calib:null, down:null, rs:0, token:0, dpr:window.devicePixelRatio||1
 };
-function defaultSettings(){ return {rates:['','','','',''], labels:EL_DEFAULT.slice(), minCharge:50, foot:FOOT_DEFAULT.join('\n'), terms:TERMS_DEFAULT.join('\n')}; }
+function defaultSettings(){ return {rates:['','','','',''], labels:EL_DEFAULT.slice(), minCharge:50, garageRate:'', garageMin:0, foot:FOOT_DEFAULT.join('\n'), terms:TERMS_DEFAULT.join('\n')}; }
 function cur(){ return S.pages[S.pi]; }
 function ptDist(a,b){ return Math.hypot(a[0]-b[0], a[1]-b[1]); }
 function elLabel(i){ return (S.settings.labels[i]||EL_DEFAULT[i]||'').trim() || EL_DEFAULT[i]; }
 function rateOf(i){ return parseFloat(S.settings.rates[i])||0; }
+/* Garages (house type "Garage") can have their own £/m2 rate and their own minimum charge (0 = none). */
+function isGarage(h){ return !!h && h.cat==='Garage'; }
+function garageRateOn(){ return (parseFloat(S.settings.garageRate)||0)>0; }
+function rateFor(h,i){ return (isGarage(h)&&garageRateOn()) ? parseFloat(S.settings.garageRate) : rateOf(i); }
+function minFor(h){ return isGarage(h) ? (parseFloat(S.settings.garageMin)||0) : (parseFloat(S.settings.minCharge)||0); }
 
 /* ---------- measuring ---------- */
 function polyArea(p){ var a=0; for(var i=0;i<p.length;i++){ var j=(i+1)%p.length; a+=p[i][0]*p[j][1]-p[j][0]*p[i][1]; } return Math.abs(a)/2; }
@@ -379,8 +384,8 @@ function htStats(h){
     if(it.type==='area') m2[it.el] += it.deduct ? -q : q; else len += q;
   });
   m2=m2.map(function(v){ return Math.max(0,Math.round(v*100)/100); });
-  var raw=0; m2.forEach(function(v,i){ raw+=v*rateOf(i); });
-  var min=parseFloat(S.settings.minCharge)||0;
+  var raw=0; m2.forEach(function(v,i){ raw+=v*rateFor(h,i); });
+  var min=minFor(h);
   var minApplied = raw>0 && raw<min;
   var unit = minApplied ? min : raw;
   var ents=entriesOf(h);
@@ -426,7 +431,7 @@ function saveSettings(){ try{ localStorage.setItem('eccTakeoffSettings', JSON.st
 function loadSettings(){
   var d=defaultSettings(), o=null;
   try{ o=JSON.parse(localStorage.getItem('eccTakeoffSettings')||'null'); }catch(e){}
-  if(o){ if(Array.isArray(o.rates)) d.rates=o.rates.concat(['','','','','']).slice(0,5); if(Array.isArray(o.labels)) d.labels=o.labels.concat(EL_DEFAULT).slice(0,5); if(o.minCharge!=null) d.minCharge=o.minCharge; if(typeof o.foot==='string') d.foot=o.foot; if(typeof o.terms==='string') d.terms=o.terms; }
+  if(o){ if(Array.isArray(o.rates)) d.rates=o.rates.concat(['','','','','']).slice(0,5); if(Array.isArray(o.labels)) d.labels=o.labels.concat(EL_DEFAULT).slice(0,5); if(o.minCharge!=null) d.minCharge=o.minCharge; if(o.garageRate!=null) d.garageRate=o.garageRate; if(o.garageMin!=null) d.garageMin=o.garageMin; if(typeof o.foot==='string') d.foot=o.foot; if(typeof o.terms==='string') d.terms=o.terms; }
   return d;
 }
 function changed(){ save(); renderSide(); refreshBar(); drawOverlay(); updateChrome(); }
@@ -546,7 +551,7 @@ function normSettings(o){
   var d=defaultSettings(); if(!o) return d;
   if(Array.isArray(o.rates)) d.rates=o.rates.concat(['','','','','']).slice(0,5);
   if(Array.isArray(o.labels)) d.labels=o.labels.concat(EL_DEFAULT).slice(0,5);
-  if(o.minCharge!=null) d.minCharge=o.minCharge; if(typeof o.foot==='string') d.foot=o.foot; if(typeof o.terms==='string') d.terms=o.terms; return d;
+  if(o.minCharge!=null) d.minCharge=o.minCharge; if(o.garageRate!=null) d.garageRate=o.garageRate; if(o.garageMin!=null) d.garageMin=o.garageMin; if(typeof o.foot==='string') d.foot=o.foot; if(typeof o.terms==='string') d.terms=o.terms; return d;
 }
 function blankDetails(){ return {site:'',client:'',ref:'',contact:'',email:'',addr:'',letterhead:true,extra:''}; }
 function blankJob(){
@@ -817,6 +822,9 @@ function openRatesDialog(){
    '<div class="cols"><div>'+
    '<div class="sect">Rates (kept for next time)</div><div class="rates">'+rateRows+'</div>'+
    '<label>Minimum charge per plot (£)<input type="number" step="0.01" min="0" id="jMin" value="'+esc(st.minCharge)+'"></label>'+
+   '<div class="sect" style="margin-top:6px">Garages (house type set to Garage)</div>'+
+   '<label>Garage rate (£ per m², all areas)<input type="number" step="0.01" min="0" inputmode="decimal" id="jGr" value="'+esc(st.garageRate)+'" placeholder="blank = use the rates above"></label>'+
+   '<label>Garage minimum charge (£)<input type="number" step="0.01" min="0" id="jGm" value="'+esc(st.garageMin)+'" placeholder="0 = no minimum"></label>'+
    '<label>Terms in the covering letter (one per line)<textarea id="jTerms" class="grow" rows="6">'+esc(st.terms)+'</textarea></label>'+
    '</div><div>'+
    '<label>Footnotes on the tender summary (one per line)<textarea id="jFoot" class="grow" rows="10">'+esc(st.foot)+'</textarea></label>'+
@@ -831,6 +839,7 @@ function openRatesDialog(){
   $('#rGo').onclick=function(){
     for(var i=0;i<5;i++){ S.settings.labels[i]=$('#jl'+i).value.trim()||EL_DEFAULT[i]; S.settings.rates[i]=$('#jr'+i).value; }
     S.settings.minCharge=$('#jMin').value===''?0:$('#jMin').value;
+    S.settings.garageRate=$('#jGr').value; S.settings.garageMin=$('#jGm').value===''?0:$('#jGm').value;
     S.settings.foot=$('#jFoot').value; S.settings.terms=$('#jTerms').value;
     saveSettings(); closeDlg(); changed(); saveNow();
   };
@@ -1302,7 +1311,7 @@ async function buildWorkbook(opts){
   var wb=new ExcelJS.Workbook(); wb.creator='Exterior Cleaning Co (NW) Ltd';
   var thin={style:'thin',color:{argb:'FF999999'}}, box={top:thin,left:thin,bottom:thin,right:thin};
   var GBP='"£"#,##0.00', yellow={type:'pattern',pattern:'solid',fgColor:{argb:'FFFFFF00'}}, grey={type:'pattern',pattern:'solid',fgColor:{argb:'FFD9D9D9'}}, green={type:'pattern',pattern:'solid',fgColor:{argb:'FFEEF2E1'}};
-  var min=parseFloat(S.settings.minCharge)||0;
+  var min=parseFloat(S.settings.minCharge)||0, gRate=parseFloat(S.settings.garageRate)||0, gMin=parseFloat(S.settings.garageMin)||0;
   var hts=S.htypes.filter(function(h){ return S.items.some(function(i){return i.ht===h.id;}); });
   var sum=wb.addWorksheet('Tender Summary',{views:[{showGridLines:false}],pageSetup:{paperSize:9,orientation:'portrait',fitToPage:true,fitToWidth:1,fitToHeight:0}});
   var bc=wb.addWorksheet('Brick Clean',{views:[{showGridLines:true}],pageSetup:{paperSize:9,orientation:'landscape',fitToPage:true,fitToWidth:1,fitToHeight:0}});
@@ -1320,6 +1329,7 @@ async function buildWorkbook(opts){
   ['Total Cost ','Rounding','Cost Extended to Summary','Total for all plots'].forEach(function(t,i){ var c=bc.getCell(1,9+i); c.value=t; c.font={name:'Calibri',size:11,bold:i===0||i===2}; c.border=box; c.alignment={wrapText:true,vertical:'middle',horizontal:'center'}; });
   bc.getCell('C2').value='Unit'; bc.getCell('C3').value='Rate';
   bc.getCell('J2').value='Minimum charge'; bc.getCell('J2').alignment={horizontal:'center'}; bc.getCell('J3').value=min; bc.getCell('J3').numFmt=GBP; bc.getCell('J3').border=box;
+  if(hts.some(isGarage)){ bc.getCell('K2').value='Garage rate / m2'; bc.getCell('K2').alignment={horizontal:'center'}; bc.getCell('K3').value=gRate; bc.getCell('K3').numFmt=GBP; bc.getCell('K3').border=box; bc.getCell('L2').value='Garage minimum'; bc.getCell('L2').alignment={horizontal:'center'}; bc.getCell('L3').value=gMin; bc.getCell('L3').numFmt=GBP; bc.getCell('L3').border=box; }
   ['A2','B2','A3','B3'].forEach(function(a){ bc.getCell(a).fill=yellow; });
   var first=5, last=first+hts.length-1, rowOf={};
   var totals={m2:[0,0,0,0,0],cost:0,round:0,ext:0,all:0};
@@ -1327,14 +1337,16 @@ async function buildWorkbook(opts){
     var row=first+idx, st=htStats(h), nm=names[h.id]; rowOf[h.id]=row;
     bc.getCell(row,1).value=h.cat; bc.getCell(row,2).value=st.ents.length; bc.getCell(row,3).value=nm;
     for(var e=0;e<5;e++){ var c=bc.getCell(row,4+e); c.value=st.m2[e]; c.numFmt='0.00'; c.fill=green; }
-    var rowCost=st.raw, rounding=(rowCost>0&&rowCost<min)?min-rowCost:0, ext=rowCost+rounding;
-    bc.getCell(row,9).value={formula:'SUMPRODUCT($D$3:$H$3,D'+row+':H'+row+')',result:rowCost};
-    bc.getCell(row,10).value={formula:'IF(AND(I'+row+'>0,I'+row+'<$J$3),$J$3-I'+row+',0)',result:rounding};
+    var gar=isGarage(h), mn=gar?gMin:min, rowCost=st.raw, rounding=(rowCost>0&&rowCost<mn)?mn-rowCost:0, ext=rowCost+rounding;
+    var gOwn = gar && gRate>0;
+    bc.getCell(row,9).value={formula: gOwn ? 'SUM(D'+row+':H'+row+')*$K$3' : 'SUMPRODUCT($D$3:$H$3,D'+row+':H'+row+')',result:rowCost};
+    var mc = gar ? '$L$3' : '$J$3';
+    bc.getCell(row,10).value={formula:'IF(AND(I'+row+'>0,I'+row+'<'+mc+'),'+mc+'-I'+row+',0)',result:rounding};
     bc.getCell(row,11).value={formula:'SUM(I'+row+':J'+row+')',result:ext};
     bc.getCell(row,12).value={formula:'K'+row+'*B'+row,result:ext*st.ents.length};
     for(var cc=9;cc<=12;cc++){ bc.getCell(row,cc).numFmt=GBP; }
     for(var cb=1;cb<=12;cb++){ bc.getCell(row,cb).border=box; bc.getCell(row,cb).font={name:'Calibri',size:11}; }
-    st.m2.forEach(function(v,i){ totals.m2[i]+=v; });
+    if(!gOwn) st.m2.forEach(function(v,i){ totals.m2[i]+=v; });
     totals.cost+=rowCost; totals.round+=rounding; totals.ext+=ext; totals.all+=ext*st.ents.length;
   });
   var tr=last+2; // totals block under the table
@@ -1342,7 +1354,7 @@ async function buildWorkbook(opts){
   lab(tr,'Total Quantity'); lab(tr+1,'Unit'); lab(tr+2,'Rate'); lab(tr+4,'Total Price Exc VAT'); lab(tr+6,'Total Price Inc VAT');
   var cols=['D','E','F','G','H'];
   cols.forEach(function(L,i){
-    bc.getCell(L+tr).value={formula:'SUM('+L+first+':'+L+last+')',result:totals.m2[i]}; bc.getCell(L+tr).numFmt='0.00';
+    bc.getCell(L+tr).value={formula: hts.some(function(h){return isGarage(h)&&gRate>0;}) ? 'SUMIF($A$'+first+':$A$'+last+',"<>Garage",'+L+first+':'+L+last+')' : 'SUM('+L+first+':'+L+last+')',result:totals.m2[i]}; bc.getCell(L+tr).numFmt='0.00';
     bc.getCell(L+(tr+1)).value='m2';
     bc.getCell(L+(tr+2)).value={formula:L+'3',result:rateOf(i)}; bc.getCell(L+(tr+2)).numFmt=GBP;
     bc.getCell(L+(tr+4)).value={formula:L+tr+'*'+L+(tr+2),result:totals.m2[i]*rateOf(i)}; bc.getCell(L+(tr+4)).numFmt=GBP;
