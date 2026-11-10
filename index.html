@@ -179,6 +179,13 @@ body:not(.at-home) #home{display:none}
 #vp .sbh .th{top:0;bottom:0;left:0}
 #vp .sbv .th{left:0;right:0;top:0}
 .mbar input[type=text]{width:130px;border:1px solid var(--line);background:var(--bg);border-radius:8px;padding:6px 8px;font:400 15px var(--f-body);color:var(--ink);text-transform:none;letter-spacing:0}
+.pgc{border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:7px;min-width:30px;padding:3px 8px;font:400 13px var(--f-mono);cursor:pointer}
+.pgc.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.pgc small{opacity:.7;margin-left:4px;font-size:11px}
+.doc .pgs{display:flex;flex-wrap:wrap;gap:4px;flex-basis:100%}
+.doc{flex-wrap:wrap}
+.mbar .pgrow{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+.it select.nm3s{flex:1;min-width:70px;max-width:120px;border:1px solid var(--line);border-radius:6px;background:var(--bg);padding:1px 4px;font:400 12px var(--f-body);color:var(--ink)}
 .it input.nm3{flex:1;min-width:70px;max-width:120px;border:1px solid var(--line);border-radius:6px;background:var(--bg);padding:1px 6px;font:400 12px var(--f-body);color:var(--ink)}
 @media (max-width:760px){ .cols{grid-template-columns:minmax(0,1fr)} }
 @media (max-width:700px){ .hgrid{grid-template-columns:minmax(0,1fr)} }
@@ -247,8 +254,8 @@ body:not(.at-home) #home{display:none}
     <div class="mbar" id="mbar">
       <label>House type <select id="selHt" aria-label="House type being measured"></select></label>
       <label><span class="dot" id="elDot"></span>Measuring <select id="selEl" aria-label="Area being measured"></select></label>
-      <label>Name <input type="text" id="areaName" list="areaNames" placeholder="Front, Rear, Side…" aria-label="Name for the next area" autocomplete="off"></label>
-      <datalist id="areaNames"><option value="Front"><option value="Rear"><option value="Left side"><option value="Right side"><option value="Side"><option value="Gable"><option value="Garage"><option value="Porch"><option value="Boundary wall"></datalist>
+      <label>Name <select id="areaNameSel" aria-label="Name for the next area"></select><input type="text" id="areaName" placeholder="type a name" aria-label="Custom name for the next area" autocomplete="off" hidden></label>
+      <span class="pgrow" id="pgChips" hidden></span>
       <button class="btn sm" id="dupBtn" type="button" disabled title="Copy the selected shape (Ctrl or ⌘ + D)">⧉ Duplicate</button>
     </div>
     <div id="vp" class="pan">
@@ -670,6 +677,7 @@ function renderDocs(){
     var pgs=S.pages.filter(function(p){return p.docId===d.id;}), ids={}; pgs.forEach(function(p){ids[p.id]=1;});
     var n=S.items.filter(function(i){return ids[i.page];}).length;
     return '<div class="doc'+(cp&&cp.docId===d.id?' on':'')+'"><span class="dn" data-godoc="'+d.id+'" title="'+esc(d.name)+'">'+esc(d.name)+'</span><span class="dm">'+pgs.length+' pg · '+n+' meas</span>'+
+      (pgs.length>1?'<div class="pgs">'+pgs.map(function(p){ var c=S.items.filter(function(i){return i.page===p.id;}).length; return '<button class="pgc'+(cp&&cp.id===p.id?' on':'')+'" type="button" data-gopage="'+p.idx+'" title="Go to page '+p.n+'">'+p.n+(c?'<small>'+c+'</small>':'')+'</button>'; }).join('')+'</div>':'')+
       (d.missing?'<button class="btn sm warn" data-redoc="'+d.id+'" type="button">Reattach</button>':'')+
       (d.id==='sample'?'':'<button class="x" data-rmdoc="'+d.id+'" type="button" aria-label="Remove drawing">×</button>')+'</div>';
   }).join('') : '<p class="hint" style="margin-bottom:8px">No drawings yet.</p>';
@@ -715,6 +723,8 @@ function updateChrome(){
   var inDoc=pg ? S.pages.filter(function(p){return p.docId===pg.docId;}).length : 0;
   $('#fileName').textContent = d ? d.name+(inDoc>1?' · page '+pg.n+' of '+inDoc:'') : (S.job.site||'No drawing yet');
   $('#pageNav').hidden = !(S.pages.length>1);
+  var pc=$('#pgChips'), sib=pg?S.pages.filter(function(p){return p.docId===pg.docId;}):[];
+  if(pc){ pc.hidden = sib.length<2; pc.innerHTML = sib.length<2 ? '' : '<span style="font:400 12px var(--f-head);letter-spacing:.08em;text-transform:uppercase;color:var(--soft)">Page</span>'+sib.map(function(p){ return '<button class="pgc'+(p.id===pg.id?' on':'')+'" type="button" data-gopage="'+p.idx+'">'+p.n+'</button>'; }).join(''); }
   $('#pageNum').textContent = (S.pi+1)+' / '+S.pages.length;
   $('#prevPage').disabled = S.pi===0; $('#nextPage').disabled = S.pi>=S.pages.length-1;
   $('#undoBtn').disabled = !S.undo.length;
@@ -741,7 +751,28 @@ function refreshBar(){
 }
 function refreshBarKeepFocus(){ var a=$('#selHt'); a.innerHTML = S.htypes.map(function(h){ return '<option value="'+h.id+'"'+(h.id===S.ht?' selected':'')+'>'+esc(h.name||'(no name)')+(h.cat?' — '+esc(h.cat):'')+'</option>'; }).join(''); }
 $('#selHt').onchange=function(){ S.ht=this.value; renderSide(); drawOverlay(); updateChrome(); };
+/* Name picker: a plain drop-down (always shows every choice), with "Other..." for a typed name */
+var NAME_PRESETS=['Front','Rear','Left side','Right side','Side','Gable','Garage','Porch','Boundary wall'];
+function nameOptions(val){
+  var h='<option value="">(no name)</option>'+NAME_PRESETS.map(function(n){ return '<option value="'+esc(n)+'"'+(n===val?' selected':'')+'>'+esc(n)+'</option>'; }).join('');
+  if(val && NAME_PRESETS.indexOf(val)<0) h+='<option value="'+esc(val)+'" selected>'+esc(val)+'</option>';
+  return h+'<option value="__other">Other…</option>';
+}
+function refreshNameSel(){
+  var s=$('#areaNameSel'); if(!s) return;
+  s.innerHTML=nameOptions(S.areaName||'');
+  if(!S.areaName) s.value='';
+  $('#areaName').hidden=true;
+}
+$('#areaNameSel').addEventListener('change',function(){
+  var t=$('#areaName');
+  if(this.value==='__other'){ t.hidden=false; t.value=''; t.focus(); S.areaName=''; return; }
+  t.hidden=true; S.areaName=this.value;
+});
 $('#areaName').addEventListener('input',function(){ S.areaName=this.value; });
+$('#areaName').addEventListener('keydown',function(e){ if(e.key==='Enter'){ var v=this.value.trim(); S.areaName=v; refreshNameSel(); } });
+$('#areaName').addEventListener('blur',function(){ var v=this.value.trim(); S.areaName=v; refreshNameSel(); });
+refreshNameSel();
 $('#selEl').onchange=function(){ S.el=parseInt(this.value,10)||0; $('#elDot').style.background=EL_COLORS[S.el]; updateChrome(); drawOverlay(); };
 
 /* ---------- dialogs ---------- */
@@ -1085,6 +1116,8 @@ window.addEventListener('keydown',function(e){
   if(mod&&k==='d'){ e.preventDefault(); if(S.sel) dupItem(S.sel); return; }
   if(mod) return;
   if(k==='escape'){ if(S.draft||S.calib){ S.draft=null; S.calib=null; if(S.tool==='scale') setTool('select'); updateChrome(); drawOverlay(); } else { S.sel=null; renderSide(); drawOverlay(); } return; }
+  if(k==='pagedown'||k===']'){ e.preventDefault(); goPage(S.pi+1); return; }
+  if(k==='pageup'||k==='['){ e.preventDefault(); goPage(S.pi-1); return; }
   if(k==='enter'){ finishDraft(); return; }
   if(k==='backspace'&&S.draft&&S.draft.pts&&S.draft.pts.length){ e.preventDefault(); S.draft.pts.pop(); if(!S.draft.pts.length) S.draft=null; drawOverlay(); return; }
   if((k==='delete'||k==='backspace')&&S.sel){ e.preventDefault(); delItem(S.sel); return; }
@@ -1096,6 +1129,7 @@ window.addEventListener('keydown',function(e){
   if(k==='-'){ var s2=vpSize(); zoomAt(0.8,s2.w/2,s2.h/2); return; }
   if(k==='0'){ fit(); return; }
 });
+document.addEventListener('click',function(e){ var b=e.target.closest('[data-gopage]'); if(b){ goPage(parseInt(b.dataset.gopage,10)); } });
 window.addEventListener('keyup',function(e){ if(e.key===' '){ S.space=false; if(S.tool!=='select') vp.classList.remove('pan'); } });
 
 function undo(){ if(!S.undo.length) return; restore(S.undo.pop()); if(!S.htypes.length){ var h=newHt('House type 1','Detached',''); S.htypes.push(h); S.ht=h.id; } changed(); }
@@ -1144,7 +1178,8 @@ function renderSide(){
       return '<div class="it"><span class="nm2'+(it.id===S.sel?' sel':'')+'" data-sel="'+it.id+'">'+esc(itemLabel(it,n))+(S.pages.length>1?' <span style="color:var(--soft)">'+esc(pageTag(S.pmap[it.page]))+'</span>':'')+'</span>'+
         (it.type==='area' ? '<select data-mvel="'+it.id+'" aria-label="Change area">'+[0,1,2,3,4].map(function(i){ return '<option value="'+i+'"'+(i===it.el?' selected':'')+'>'+esc(elLabel(i))+'</option>'; }).join('')+'</select>' : '')+
         '<select data-mv="'+it.id+'" aria-label="Move to house type">'+S.htypes.map(function(o){ return '<option value="'+o.id+'"'+(o.id===h.id?' selected':'')+'>'+esc(o.name||'(no name)')+'</option>'; }).join('')+'</select>'+
-        '<input class="nm3" type="text" list="areaNames" data-nm="'+it.id+'" value="'+esc(it.name||'')+'" placeholder="name" aria-label="Name of this measurement">'+
+        '<select class="nm3s" data-nms="'+it.id+'" aria-label="Name of this measurement">'+nameOptions(it.name||'')+'</select>'+
+        '<input class="nm3" type="text" data-nm="'+it.id+'" value="" placeholder="type a name" aria-label="Custom name of this measurement" hidden>'+
         '<button class="x" data-dup="'+it.id+'" type="button" aria-label="Duplicate" title="Duplicate">⧉</button>'+
         '<button class="x" data-del="'+it.id+'" type="button" aria-label="Delete">×</button></div>';
     }).join('');
@@ -1173,6 +1208,12 @@ function renderSide(){
   root.querySelectorAll('select[data-cat]').forEach(function(i){ i.addEventListener('change',function(){ htById(i.dataset.cat).cat=i.value; save(); refreshBar(); }); });
   root.querySelectorAll('[data-rm]').forEach(function(b){ b.addEventListener('click',function(){ removeHt(b.dataset.rm); }); });
   root.querySelectorAll('[data-sel]').forEach(function(b){ b.addEventListener('click',function(){ var it=S.items.find(function(x){return x.id===b.dataset.sel;}); if(!it) return; var tp=S.pmap[it.page]; if(tp&&tp.idx!==S.pi){ goPage(tp.idx); } setTool('select'); S.sel=it.id; renderSide(); drawOverlay(); }); });
+  root.querySelectorAll('select[data-nms]').forEach(function(s){ s.addEventListener('change',function(){
+    var it=S.items.find(function(x){return x.id===s.dataset.nms;}); if(!it) return;
+    if(s.value==='__other'){ var t=s.parentNode.querySelector('input[data-nm]'); t.hidden=false; t.value=''; t.focus(); return; }
+    it.name=s.value; save(); renderSide(); drawOverlay();
+  }); });
+  root.querySelectorAll('input[data-nm]').forEach(function(i){ i.addEventListener('blur',function(){ var it=S.items.find(function(x){return x.id===i.dataset.nm;}); if(it){ it.name=i.value.trim(); save(); renderSide(); drawOverlay(); } }); });
   root.querySelectorAll('input[data-nm]').forEach(function(i){ i.addEventListener('input',function(){ var it=S.items.find(function(x){return x.id===i.dataset.nm;}); if(it){ it.name=i.value; save(); drawOverlay(); } }); i.addEventListener('keydown',function(e){ if(e.key==='Enter') i.blur(); }); });
   root.querySelectorAll('[data-dup]').forEach(function(b){ b.addEventListener('click',function(){ dupItem(b.dataset.dup); }); });
   root.querySelectorAll('[data-del]').forEach(function(b){ b.addEventListener('click',function(){ delItem(b.dataset.del); }); });
@@ -1251,8 +1292,7 @@ function uniqueNames(){
   var seen={}, out={};
   S.htypes.forEach(function(h){
     var base=(h.name||'House type').trim()||'House type', n=base, k=2;
-    while(seen[n.toLowerCase()]){ n=base+' ('+k+')'; k++; }
-    seen[n.toLowerCase()]=1; out[h.id]=n;
+    out[h.id]=n;
   });
   return out;
 }
