@@ -179,6 +179,9 @@ body:not(.at-home) #home{display:none}
 #vp .sbh .th{top:0;bottom:0;left:0}
 #vp .sbv .th{left:0;right:0;top:0}
 .mbar input[type=text]{width:130px;border:1px solid var(--line);background:var(--bg);border-radius:8px;padding:6px 8px;font:400 15px var(--f-body);color:var(--ink);text-transform:none;letter-spacing:0}
+.discrow{margin-top:10px}.discrow label{display:flex;align-items:center;gap:8px;font:400 12px var(--f-head);letter-spacing:.08em;text-transform:uppercase;color:var(--soft)}
+.discrow select,.discrow input{border:1px solid var(--line);background:var(--bg);border-radius:8px;padding:5px 8px;font:400 14px var(--f-body);color:var(--ink);text-transform:none;letter-spacing:0}
+.discrow input{width:110px}
 .pgc{border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:7px;min-width:30px;padding:3px 8px;font:400 13px var(--f-mono);cursor:pointer}
 .pgc.on{background:var(--accent);border-color:var(--accent);color:#fff}
 .pgc small{opacity:.7;margin-left:4px;font-size:11px}
@@ -287,6 +290,7 @@ body:not(.at-home) #home{display:none}
     <section class="card">
       <h2>Totals</h2>
       <div class="tot" id="totals"></div>
+      <div class="discrow"><label>Discount <select id="discType" aria-label="Discount type"><option value="pct">%</option><option value="amt">£</option></select><input type="number" id="discVal" min="0" step="0.01" inputmode="decimal" placeholder="none" aria-label="Discount amount"></label></div>
       <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;align-items:center">
         <button class="btn" id="copyBtn" type="button">Copy summary</button>
         <span class="hint" id="copyMsg" role="status"></span>
@@ -365,6 +369,13 @@ function itemQty(it){
   return it.type==='area' ? polyArea(it.pts)*m*m : polyLen(it.pts)*m;
 }
 function htById(id){ return S.htypes.find(function(h){return h.id===id;}); }
+/* Optional discount off the tender total (a percentage or a fixed £ amount), kept with the job */
+function discountOf(sub){
+  var v=parseFloat(S.job.discVal)||0; if(v<=0||sub<=0) return 0;
+  var d = S.job.discType==='amt' ? v : sub*v/100;
+  return Math.min(Math.round(d*100)/100, sub);
+}
+function discLabel(){ var v=parseFloat(S.job.discVal)||0; return S.job.discType==='amt' ? 'Discount' : 'Discount ('+(+v.toFixed(2))+'%)'; }
 function entriesOf(h){
   var raw=String(h.plots||'').split(/[,\n;]+/).map(function(x){return x.trim();}).filter(Boolean);
   var out=[];
@@ -553,7 +564,7 @@ function normSettings(o){
   if(Array.isArray(o.labels)) d.labels=o.labels.concat(EL_DEFAULT).slice(0,5);
   if(o.minCharge!=null) d.minCharge=o.minCharge; if(o.garageRate!=null) d.garageRate=o.garageRate; if(o.garageMin!=null) d.garageMin=o.garageMin; if(typeof o.foot==='string') d.foot=o.foot; if(typeof o.terms==='string') d.terms=o.terms; return d;
 }
-function blankDetails(){ return {site:'',client:'',ref:'',contact:'',email:'',addr:'',letterhead:true,extra:''}; }
+function blankDetails(){ return {discType:'pct',discVal:'',site:'',client:'',ref:'',contact:'',email:'',addr:'',letterhead:true,extra:''}; }
 function blankJob(){
   S.jobId=uid(); S.docs=[]; S.pages=[]; S.pi=0; S.items=[]; S.htypes=[]; S.ht=null; S.el=0; S.sel=null; S.draft=null; S.undo=[]; S.rs=0; S.open={}; S.reattach=null; S.noStore=false;
   S.job=blankDetails(); S.settings=loadSettings();
@@ -1231,7 +1242,16 @@ function renderSide(){
   root.querySelectorAll('details[data-open]').forEach(function(d){ d.addEventListener('toggle',function(){ S.open[d.dataset.open]=d.open; }); });
   renderNumsOnly();
 }
+function syncDisc(){
+  var t=$('#discType'), v=$('#discVal'); if(!t||!v) return;
+  if(document.activeElement!==t) t.value=S.job.discType==='amt'?'amt':'pct';
+  if(document.activeElement!==v) v.value=S.job.discVal||'';
+}
+function onDisc(){ pushUndo(); S.job.discType=$('#discType').value; S.job.discVal=$('#discVal').value; save(); renderNumsOnly(); }
+$('#discType').addEventListener('change',onDisc);
+$('#discVal').addEventListener('input',function(){ S.job.discType=$('#discType').value; S.job.discVal=this.value; save(); renderNumsOnly(); });
 function renderNumsOnly(){
+  syncDisc();
   S.htypes.forEach(function(h){ var el=$('#n-'+h.id); if(el) el.innerHTML=numsHtml(h); });
   var ex=0, any=false, lines=[], elTot=[0,0,0,0,0], len=0, plots=0;
   S.htypes.forEach(function(h){
@@ -1240,11 +1260,12 @@ function renderNumsOnly(){
     len+=st.len*st.ents.length;
   });
   var anyRate=S.settings.rates.some(function(r){ return parseFloat(r)>0; });
+  var disc=discountOf(ex), sub=ex; ex=ex-disc;
   var vat=ex*0.2, h2='';
   for(var i=0;i<5;i++) if(elTot[i]>0) h2+='<div><span>'+esc(elLabel(i))+'</span><span>'+nf(elTot[i])+' m²</span></div>';
   if(!h2) h2='<div style="color:var(--soft);font:300 13px var(--f-body)">Measurements across all plots show here.</div>';
   else h2+='<div style="color:var(--soft);font-size:12px"><span>across '+plots+' plot'+(plots===1?'':'s')+'</span><span></span></div>';
-  if(anyRate && ex>0){ h2+='<div><span>Ex VAT</span><span>'+money(ex)+'</span></div><div><span>VAT 20%</span><span>'+money(vat)+'</span></div><div class="big"><span>Inc VAT</span><span>'+money(ex+vat)+'</span></div>'; }
+  if(anyRate && ex>0){ if(disc>0) h2+='<div><span>Subtotal</span><span>'+money(sub)+'</span></div><div><span>'+esc(discLabel())+'</span><span>−'+money(disc)+'</span></div>'; h2+='<div><span>Ex VAT</span><span>'+money(ex)+'</span></div><div><span>VAT 20%</span><span>'+money(vat)+'</span></div><div class="big"><span>Inc VAT</span><span>'+money(ex+vat)+'</span></div>'; }
   else if(!anyRate) h2+='<div style="color:var(--soft);font:300 13px var(--f-body)">Add your rates in Rates & terms to see a price.</div>';
   $('#totals').innerHTML=h2;
   $('#exportBtn').disabled = !S.htypes.some(function(h){ return S.items.some(function(i){return i.ht===h.id;}); });
@@ -1283,7 +1304,7 @@ function summaryText(){
     if(st.unit>0){ line+=' = '+money(st.unit)+' per plot'+(st.ents.length?' × '+st.ents.length+' = '+money(st.total):''); ex+=st.total; anyP=true; }
     L.push(line);
   });
-  if(anyP){ L.push(''); L.push('Ex VAT: '+money(ex)); L.push('VAT 20%: '+money(ex*0.2)); L.push('Inc VAT: '+money(ex*1.2)); }
+  if(anyP){ var dsc=discountOf(ex); if(dsc>0){ L.push(''); L.push('Subtotal: '+money(ex)); L.push(discLabel()+': -'+money(dsc)); ex=ex-dsc; } L.push(''); L.push('Ex VAT: '+money(ex)); L.push('VAT 20%: '+money(ex*0.2)); L.push('Inc VAT: '+money(ex*1.2)); }
   return L.join('\n');
 }
 $('#copyBtn').onclick=function(){
@@ -1379,7 +1400,7 @@ async function buildWorkbook(opts){
   var imgId=wb.addImage({base64:LOGO_B64,extension:'jpeg'});
   sum.addImage(imgId,{tl:{col:8.15,row:5.1},ext:{width:340,height:160}});
   var H=14;
-  [['C','Plots'],['D','HOUSETYPE'],['E','TYPE'],['F','Tender Submission'],['I','Brick acid jet wash '],['J','TENDER VALUE']].forEach(function(p){
+  [['C',hts.reduce(function(a,h){return a+entriesOf(h).length;},0)===1?'Plot':'Plots'],['D','HOUSETYPE'],['E','TYPE'],['F','Tender Submission'],['I','Brick acid jet wash '],['J','TENDER VALUE']].forEach(function(p){
     var c=sum.getCell(p[0]+H); c.value=p[1]; c.font={name:'Calibri',size:12,bold:p[0]==='J'}; c.alignment={horizontal:'center',vertical:'middle'};
   });
   ['C','D','E','F','G','H','I','J'].forEach(function(L){ var c=sum.getCell(L+H); c.fill=grey; c.border=box; });
@@ -1395,8 +1416,10 @@ async function buildWorkbook(opts){
     sum.getCell('C'+r).value=rw.en.label; sum.getCell('D'+r).value=nm; sum.getCell('E'+r).value=rw.h.cat;
     sum.getCell('F'+r).value={formula:"'Brick Clean'!$K$"+rowOf[rw.h.id],result:st.unit};
     sum.getCell('I'+r).value={formula:'F'+r,result:st.unit}; sum.getCell('J'+r).value={formula:'I'+r,result:st.unit};
+    sum.getCell('K'+r).value=rowOf[rw.h.id];
     totalVal+=st.unit;
   });
+  sum.getColumn(11).hidden=true;
   for(var r=r0;r<=rN;r++){
     ['C','D','E','F','G','H','I','J'].forEach(function(L){ var c=sum.getCell(L+r); c.border=box; c.font={name:'Calibri',size:12}; });
     ['F','I','J'].forEach(function(L){ sum.getCell(L+r).numFmt=GBP; });
@@ -1405,17 +1428,40 @@ async function buildWorkbook(opts){
   var tot=rN+2;
   sum.getCell('C'+tot).value='Total Price'; sum.getCell('C'+tot).font={name:'Calibri',size:12,bold:true};
   ['F','I','J'].forEach(function(L){ var c=sum.getCell(L+tot); c.value={formula:'SUM('+L+r0+':'+L+rN+')',result:totalVal}; c.numFmt=GBP; c.font={name:'Calibri',size:12,bold:true}; c.border=box; });
-  var fr=tot+3;
+  var dsc=discountOf(totalVal), discRow=0, netRow=tot;
+  if(dsc>0){
+    discRow=tot+1; netRow=tot+2;
+    var isPct=S.job.discType!=='amt', dv=parseFloat(S.job.discVal)||0;
+    sum.getCell('C'+discRow).value=isPct?'Discount %':'Discount £'; sum.getCell('C'+discRow).font={name:'Calibri',size:12,bold:true};
+    var ic=sum.getCell('E'+discRow); ic.value=isPct?dv/100:dv; ic.numFmt=isPct?'0.0#%':GBP; ic.fill=yellow; ic.border=box; ic.font={name:'Calibri',size:12};
+    var fc=sum.getCell('F'+discRow); fc.value={formula:isPct?'-ROUND(F'+tot+'*E'+discRow+',2)':'-MIN(E'+discRow+',F'+tot+')',result:-dsc};
+    ['I','J'].forEach(function(L){ sum.getCell(L+discRow).value={formula:L==='I'?'F'+discRow:'I'+discRow,result:-dsc}; });
+    sum.getCell('C'+netRow).value='Total after discount'; sum.getCell('C'+netRow).font={name:'Calibri',size:12,bold:true};
+    ['F','I','J'].forEach(function(L){ sum.getCell(L+discRow).numFmt=GBP; sum.getCell(L+discRow).border=box; sum.getCell(L+discRow).font={name:'Calibri',size:12};
+      var c=sum.getCell(L+netRow); c.value={formula:L+tot+'+'+L+discRow,result:totalVal-dsc}; c.numFmt=GBP; c.font={name:'Calibri',size:12,bold:true}; c.border=box; });
+  }
+  /* Brick Clean: plot counts follow the Tender Summary, so deleting a plot row there changes every total */
+  hts.forEach(function(h){ var rr=rowOf[h.id]; bc.getCell(rr,2).value={formula:"COUNTIF('Tender Summary'!$K$"+r0+":$K$"+rN+",ROW())",result:htStats(h).ents.length}; });
+  if(dsc>0){
+    var bd=tr+8;
+    lab(bd,'Discount'); lab(bd+1,'Total after discount Exc VAT'); lab(bd+2,'Total after discount Inc VAT');
+    var cl=bc.getCell('L'+bd); cl.value={formula:"'Tender Summary'!F"+discRow,result:-dsc}; cl.numFmt=GBP;
+    var c2=bc.getCell('L'+(bd+1)); c2.value={formula:'L'+(tr+4)+'+L'+bd,result:totals.all-dsc}; c2.numFmt=GBP; c2.font={name:'Calibri',size:11,bold:true};
+    var c3=bc.getCell('L'+(bd+2)); c3.value={formula:'L'+(bd+1)+'*20%+L'+(bd+1),result:(totals.all-dsc)*1.2}; c3.numFmt=GBP;
+  }
+  var fr=netRow+3;
   sum.getCell('C'+fr).value='FOOTNOTES'; sum.getCell('C'+fr).font={name:'Calibri',size:12,bold:true};
   S.settings.foot.split('\n').map(function(x){return x.trim();}).filter(Boolean).forEach(function(tx,i){
     sum.getCell('C'+(fr+1+i)).value=i+1; sum.getCell('C'+(fr+1+i)).alignment={horizontal:'left'}; sum.getCell('D'+(fr+1+i)).value=tx;
     sum.getCell('C'+(fr+1+i)).font={name:'Calibri',size:11}; sum.getCell('D'+(fr+1+i)).font={name:'Calibri',size:11};
   });
   if(opts.summaryOnly){
-    /* plots page only: turn every formula into its plain value, then drop the working sheet */
-    sum.eachRow(function(row){ row.eachCell(function(c){ if(c.value && typeof c.value==='object' && c.value.formula!==undefined) c.value=c.value.result; }); });
+    /* plots page only: prices that came from the Brick Clean sheet become plain numbers; the totals and discount stay as formulas */
+    sum.eachRow(function(row){ row.eachCell(function(c){ if(c.value && typeof c.value==='object' && c.value.formula!==undefined && /Brick Clean/.test(c.value.formula)) c.value=c.value.result; }); });
     wb.removeWorksheet(bc.id);
-  } else wb.calcProperties={fullCalcOnLoad:true};
+    sum.eachRow(function(row){ var k=row.getCell('K'); if(k.value!==null && k.value!==undefined) k.value=null; });
+  }
+  wb.calcProperties={fullCalcOnLoad:true};
   return wb.xlsx.writeBuffer();
 }
 var libCache={};
@@ -1449,14 +1495,16 @@ function tenderData(){
   hts.forEach(function(h){ var st=htStats(h); entriesOf(h).forEach(function(en,ix){ rows.push({en:en,h:h,ix:ix,name:names[h.id],unit:st.unit}); }); });
   rows.sort(function(a,b){ return (firstNum(a.en.raw)-firstNum(b.en.raw)) || (a.ix-b.ix); });
   var total=0; rows.forEach(function(r){ total+=r.unit; });
+  var disc=discountOf(total);
   var elUsed=[]; for(var e=0;e<5;e++){ if(hts.some(function(h){ return htStats(h).m2[e]>0; })) elUsed.push(elLabel(e)); }
   var lines=function(t){ return String(t||'').split('\n').map(function(x){return x.trim();}).filter(Boolean); };
-  return {rows:rows,total:total,hts:hts,els:elUsed,foot:lines(S.settings.foot),terms:lines(S.settings.terms)};
+  return {rows:rows,total:total,disc:disc,net:total-disc,discLabel:discLabel(),hts:hts,els:elUsed,foot:lines(S.settings.foot),terms:lines(S.settings.terms)};
 }
 function plotRangeText(rows){
   var nums=[], other=0; rows.forEach(function(r){ if(/^\d/.test(r.en.raw)) (r.en.raw.match(/\d+/g)||[]).forEach(function(x){ nums.push(parseInt(x,10)); }); else other++; });
   if(!nums.length) return '';
-  var t='Plots '+Math.min.apply(null,nums)+' to '+Math.max.apply(null,nums);
+  var u=nums.filter(function(x,i){ return nums.indexOf(x)===i; }).sort(function(a,b){return a-b;});
+  var t = u.length===1 ? 'Plot '+u[0] : u.length===2 ? 'Plots '+u[0]+' and '+u[1] : 'Plots '+u[0]+' to '+u[u.length-1];
   return t+(other?' (plus '+other+' other item'+(other>1?'s':'')+')':'');
 }
 function ordinalDate(d){
@@ -1488,9 +1536,9 @@ async function buildSummaryPdf(){
   doc.setFontSize(11);
   info.forEach(function(p){ doc.setFont('helvetica','bold'); doc.text(p[0],M,y); doc.text(String(p[1]||''),M+22,y); y+=6.5; });
   doc.autoTable({startY:Math.max(y+6,62),margin:{left:M,right:M,bottom:18},
-    head:[['Plots','House type','Type','Brick acid jet wash','Tender value']],
+    head:[[T.rows.length===1?'Plot':'Plots','House type','Type','Brick acid jet wash','Tender value']],
     body:T.rows.map(function(r){ return [r.en.label,r.name,r.h.cat,gbp(r.unit),gbp(r.unit)]; }),
-    foot:[[{content:'Total Price',colSpan:3,styles:{halign:'left'}},gbp(T.total),gbp(T.total)]],
+    foot:(T.disc>0?[[{content:'Subtotal',colSpan:3,styles:{halign:'left'}},gbp(T.total),gbp(T.total)],[{content:T.discLabel,colSpan:3,styles:{halign:'left'}},'-'+gbp(T.disc),'-'+gbp(T.disc)]]:[]).concat([[{content:T.disc>0?'Total Price after discount':'Total Price',colSpan:3,styles:{halign:'left'}},gbp(T.net),gbp(T.net)]]),
     showFoot:'lastPage', theme:'grid',
     styles:{font:'helvetica',fontSize:9.5,cellPadding:1.8,textColor:20,lineColor:[150,150,150],lineWidth:.2},
     headStyles:{fillColor:[217,217,217],textColor:20,fontStyle:'bold',halign:'center'},
@@ -1528,7 +1576,8 @@ function letterBlocks(dateObj){
   var bl=[]; bl.push('Works: '+(T.els.length?T.els.join(', '):'Brick')+' cleaning to '+n+' plot'+(n===1?'':'s')+' across '+m+' house type'+(m===1?'':'s'));
   var pr=plotRangeText(T.rows); if(pr) bl.push(pr);
   B.push({k:'bul',items:bl}); B.push({k:'gap'});
-  B.push({k:'p',bold:true,t:'Total tender value: '+gbp(T.total)+' (excluding VAT)'}); B.push({k:'gap'});
+  if(T.disc>0){ B.push({k:'p',t:'Tender value '+gbp(T.total)+', less '+T.discLabel.toLowerCase()+' of '+gbp(T.disc)+'.'}); }
+  B.push({k:'p',bold:true,t:'Total tender value: '+gbp(T.net)+' (excluding VAT)'}); B.push({k:'gap'});
   if(T.terms.length){ B.push({k:'p',t:'Our tender is submitted on the following terms:'}); B.push({k:'bul',items:T.terms}); B.push({k:'gap'}); }
   if(j.extra && j.extra.trim()){ j.extra.trim().split(/\n+/).forEach(function(x){ B.push({k:'p',t:x}); B.push({k:'gap'}); }); }
   B.push({k:'p',t:'We would be pleased to work with '+(j.client||'you')+' on this development and are happy to discuss any part of the tender. Please contact me on 01270 447960 / 07798885884 or at swilliams@exteriorcleaningco.com.'});
