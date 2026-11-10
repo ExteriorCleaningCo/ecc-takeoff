@@ -1393,7 +1393,7 @@ async function buildWorkbook(opts){
   rows.forEach(function(rw,i){
     var r=r0+i, st=htStats(rw.h), nm=names[rw.h.id];
     sum.getCell('C'+r).value=rw.en.label; sum.getCell('D'+r).value=nm; sum.getCell('E'+r).value=rw.h.cat;
-    sum.getCell('F'+r).value={formula:'VLOOKUP(D'+r+','+bcRange+',9,FALSE)',result:st.unit};
+    sum.getCell('F'+r).value={formula:"'Brick Clean'!$K$"+rowOf[rw.h.id],result:st.unit};
     sum.getCell('I'+r).value={formula:'F'+r,result:st.unit}; sum.getCell('J'+r).value={formula:'I'+r,result:st.unit};
     totalVal+=st.unit;
   });
