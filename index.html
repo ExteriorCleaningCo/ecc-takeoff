@@ -1565,19 +1565,16 @@ async function buildSummaryPdf(){
 function letterBlocks(dateObj){
   var T=tenderData(), j=S.job, B=[], first=(j.contact||'').trim().split(/\s+/)[0];
   var addr=String(j.addr||'').split('\n').map(function(x){return x.trim();}).filter(Boolean);
-  B.push({k:'p',t:ordinalDate(dateObj)}); B.push({k:'gap'});
-  var to=[]; if(j.contact) to.push(j.contact); if(j.client) to.push(j.client); addr.forEach(function(a){ to.push(a); }); if(j.email) to.push(j.email);
-  to.forEach(function(l){ B.push({k:'p',t:l}); }); if(to.length) B.push({k:'gap'});
+  B.push({k:'p',t:ordinalDate(dateObj),right:true}); B.push({k:'gap'});
   B.push({k:'p',t:first?'Dear '+first+',':'Dear Sir/Madam,'}); B.push({k:'gap'});
   B.push({k:'p',bold:true,t:'Brick Cleaning Tender - '+(j.site||'')+(j.ref?' ('+j.ref+')':'')}); B.push({k:'gap'});
   var n=T.rows.length, m=T.hts.length;
   B.push({k:'p',t:'Thank you for the opportunity to tender for the brick cleaning works at '+(j.site||'your site')+'. Please find our tender summary attached, with the main points set out below.'});
   B.push({k:'gap'});
-  var bl=[]; bl.push('Works: '+(T.els.length?T.els.join(', '):'Brick')+' cleaning to '+n+' plot'+(n===1?'':'s')+' across '+m+' house type'+(m===1?'':'s'));
-  var pr=plotRangeText(T.rows); if(pr) bl.push(pr);
-  B.push({k:'bul',items:bl}); B.push({k:'gap'});
+  var hasGar=T.rows.some(function(r){ return isGarage(r.h); });
+  B.push({k:'bul',items:['Works: Brick Acid Cleaning to '+n+' plot'+(n===1?'':'s')+(hasGar?' including Garages':'')]}); B.push({k:'gap'});
   if(T.disc>0){ B.push({k:'p',t:'Tender value '+gbp(T.total)+', less '+T.discLabel.toLowerCase()+' of '+gbp(T.disc)+'.'}); }
-  B.push({k:'p',bold:true,t:'Total tender value: '+gbp(T.net)+' (excluding VAT)'}); B.push({k:'gap'});
+  B.push({k:'p',bold:true,t:'Total tender value: '+gbp(T.net)}); B.push({k:'gap'});
   if(T.terms.length){ B.push({k:'p',t:'Our tender is submitted on the following terms:'}); B.push({k:'bul',items:T.terms}); B.push({k:'gap'}); }
   if(j.extra && j.extra.trim()){ j.extra.trim().split(/\n+/).forEach(function(x){ B.push({k:'p',t:x}); B.push({k:'gap'}); }); }
   B.push({k:'p',t:'We would be pleased to work with '+(j.client||'you')+' on this development and are happy to discuss any part of the tender. Please contact me on 01270 447960 / 07798885884 or at swilliams@exteriorcleaningco.com.'});
@@ -1596,7 +1593,7 @@ async function buildLetterPdf(dateObj){
     if(b.k==='gap'){ y+=b.h||2.6; return; }
     if(b.k==='p'){
       doc.setFont('helvetica',b.bold?'bold':'normal'); var ls=doc.splitTextToSize(b.t,W-2*M);
-      room(/^Yours/.test(b.t)?38:lh*ls.length); doc.text(ls,M,y); y+=lh*ls.length; return;
+      room(/^Yours/.test(b.t)?38:lh*ls.length); if(b.right) doc.text(ls,W-M,y,{align:'right'}); else doc.text(ls,M,y); y+=lh*ls.length; return;
     }
     if(b.k==='bul'){
       doc.setFont('helvetica','normal');
@@ -1616,7 +1613,7 @@ async function buildLetterDocx(dateObj){
   else headerKids.push(new D.Paragraph({children:[]}));
   B.forEach(function(b){
     if(b.k==='gap'){ kids.push(new D.Paragraph({spacing:{after:b.h?b.h*20:60},children:[]})); return; }
-    if(b.k==='p'){ kids.push(new D.Paragraph({keepNext:!!b.keep,children:[run(b.t,{bold:!!b.bold})]})); return; }
+    if(b.k==='p'){ kids.push(new D.Paragraph({keepNext:!!b.keep,alignment:b.right?D.AlignmentType.RIGHT:D.AlignmentType.LEFT,children:[run(b.t,{bold:!!b.bold})]})); return; }
     if(b.k==='bul') b.items.forEach(function(it){ kids.push(new D.Paragraph({numbering:{reference:'bul',level:0},spacing:{after:40},children:[run(it)]})); });
   });
   var doc=new D.Document({
